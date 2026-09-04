@@ -53,14 +53,14 @@ a flagged site for 3 minutes (3-min host bypass, DNR rule removed on Chrome).
 All builds share the same `background.js`/`warning.html` logic (Firefox uses `browser.*`, Chromium uses `chrome.*` via `NS` shim) — instant known-domain blocks + per-navigation precheck, fail-open if the server is unreachable.
 
 See `extension-firefox/README.md` (Firefox) and `extension/README.md`
-(Chrome/Edge) for detailed steps. Download ready-to-install files from the GitHub Release **v1.1.0**: `phishguard-firefox-signed.xpi` and `phishguard-chrome.zip` at https://github.com/noahotim/anti-phishing-platform/releases/tag/v1.1.0
+(Chrome/Edge) for detailed steps. Download ready-to-install files from the GitHub Release **v1.1.4**: `phishguard-firefox-signed.xpi` and `phishguard-chrome.zip` at https://github.com/noahotim/anti-phishing-platform/releases/tag/v1.1.4
 
 ### Server URL for other PCs
 
 - **Inside your LAN:** `http://192.168.100.43:8000`
-- **Outside your LAN:** public tunnel `https://fda-wishlist-finds-protection.trycloudflare.com` (quick tunnel — host changes on restart; for a stable host create a named Cloudflare Tunnel)
+- **Outside your LAN (Noah URL):** `https://fda-wishlist-finds-protection.trycloudflare.com` (public Cloudflare Tunnel — quick tunnel, host changes on restart; for a stable host create a named tunnel)
 
-Set the chosen URL in the extension's **Options** → **Save** → **Refresh blocked domains**.
+Noah URL is the default in v1.1.1+ (outside PCs work automatically after install). Set manually in the extension's **Options** → **Save** → **Refresh blocked domains** if needed.
 
 ## Firefox permanent install
 
