@@ -5,49 +5,37 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Install PhishGuard — Noah URL</title>
   <link rel="stylesheet" href="/assets/style.css">
-  <meta http-equiv="refresh" content="0; url=#">
 </head>
 <body>
   <main class="wrap wrap-narrow" style="text-align:center; padding-top:40px;">
     <div class="card" style="padding:28px 24px;">
-      <h1 class="gradient-text" style="font-size:22px;">Installing PhishGuard…</h1>
-      <p class="sub" id="msg" style="margin-top:10px;">Detecting your browser…</p>
-      <div id="manual" class="hidden" style="margin-top:18px; text-align:left;">
-        <p class="sub">If nothing happens, tap your browser below:</p>
+      <h1 class="gradient-text" style="font-size:22px;">Install PhishGuard</h1>
+      <p class="sub" id="msg" style="margin-top:10px;">Tap your browser below — instant, works on every phone.</p>
+      <div id="manual" style="margin-top:18px; text-align:left;">
         <div style="display:flex; gap:10px; flex-wrap:wrap; justify-content:center; margin-top:10px;">
-          <a id="ff-link" class="btn-primary" style="padding:10px 16px; border-radius:8px; text-decoration:none;" href="#">Firefox — Tap to install</a>
-          <a id="ch-link" class="btn-primary" style="padding:10px 16px; border-radius:8px; text-decoration:none; background:#1d3a55;" href="#">Chrome/Edge — Download</a>
+          <a id="ff-link" class="btn-primary" style="padding:12px 18px; border-radius:8px; text-decoration:none; font-size:16px;" href="./phishguard-firefox-signed.xpi">Firefox — Tap to install</a>
+          <a id="ch-link" class="btn-primary" style="padding:12px 18px; border-radius:8px; text-decoration:none; background:#1d3a55; font-size:16px;" href="./phishguard-chrome.zip">Chrome / Edge / Samsung / Opera — Tap to download</a>
         </div>
-        <p class="sub" style="margin-top:14px; font-size:12px;">Firefox: allow the install prompt. Chrome/Edge: unzip the downloaded <code>phishguard-chrome.zip</code> then <code>chrome://extensions</code> → Developer mode → Load unpacked → pick the folder.</p>
+        <p class="sub" style="margin-top:14px; font-size:12px;">Firefox: allow the install prompt. Chrome/Edge/Samsung/Opera: unzip the downloaded <code>phishguard-chrome.zip</code> then <code>chrome://extensions</code> → Developer mode → Load unpacked → pick the folder.<br>All phones: uses Noah URL <code>https://fda-wishlist-finds-protection.trycloudflare.com</code> automatically.</p>
       </div>
     </div>
   </main>
   <script>
+  // Instant for every phone — no detection wait. Links already point to direct /app/ files.
+  // We still try a gentle auto-start in the background for Firefox (which can auto-install),
+  // but the buttons are already tappable before any JS runs.
   (function(){
     var ua = navigator.userAgent.toLowerCase();
     var isFirefox = ua.indexOf('firefox') !== -1 || ua.indexOf('fxios') !== -1;
-    var isChrome = ua.indexOf('chrome') !== -1 && ua.indexOf('edg') === -1;
-    var isEdge = ua.indexOf('edg') !== -1;
-    // Direct from your server (Noah URL) — instant, no GitHub redirect
-    var ffUrl = "./phishguard-firefox-signed.xpi";
-    var chUrl = "./phishguard-chrome.zip";
-    var msg = document.getElementById('msg');
-    var manual = document.getElementById('manual');
-    var ffLink = document.getElementById('ff-link');
-    var chLink = document.getElementById('ch-link');
-    ffLink.href = ffUrl;
-    chLink.href = chUrl;
-    // Show manual buttons immediately so tapping is instant
-    manual.classList.remove('hidden');
+    // For Firefox, try to auto-trigger the XPI install without blocking the UI
     if (isFirefox) {
-      msg.textContent = "Firefox detected — tap below to install (or wait 1s)…";
-      setTimeout(function(){ window.location.href = ffUrl; }, 300);
-    } else if (isChrome || isEdge) {
-      msg.textContent = "Chrome/Edge detected — tap below to download (or wait 1s)…";
-      setTimeout(function(){ window.location.href = chUrl; }, 300);
-    } else {
-      msg.textContent = "Tap your browser below to install — instant.";
+      // Small delay so the page renders first, then trigger
+      setTimeout(function(){
+        try { window.location.href = "./phishguard-firefox-signed.xpi"; } catch(e){}
+      }, 400);
     }
+    // For every other browser (Chrome, Edge, Samsung Internet, Opera, etc.) we do NOT auto-download —
+    // the user just taps the clearly labelled button above, which is instant.
   })();
   </script>
 </body>
