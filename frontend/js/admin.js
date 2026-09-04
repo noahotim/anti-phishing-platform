@@ -419,6 +419,7 @@
     ["ADULT", "Adult content"],
     ["SOCIAL_MEDIA", "Social media"],
     ["OTHER", "Other blocked content"],
+    ["ADS", "Advertisements"],
   ];
 
   function policyLabel(cat) {

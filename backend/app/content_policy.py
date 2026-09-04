@@ -13,6 +13,7 @@ CONTENT_CATEGORIES: tuple[str, ...] = (
     "ADULT",
     "SOCIAL_MEDIA",
     "OTHER",
+    "ADS",
 )
 
 CATEGORY_LABELS: dict[str, str] = {
@@ -20,4 +21,5 @@ CATEGORY_LABELS: dict[str, str] = {
     "ADULT": "Adult content",
     "SOCIAL_MEDIA": "Social media",
     "OTHER": "Other blocked content",
+    "ADS": "Advertisements",
 }
