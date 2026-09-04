@@ -1,0 +1,40 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+.pytest_cache/
+*.egg-info/
+.coverage
+htmlcov/
+
+# Environment / secrets
+.env
+.env.*
+!.env.example
+
+# Runtime / logs
+*.log
+*.pid
+*.out
+phishguard.out.log
+phishguard.err.log
+
+# Database (live DB contains accounts/secrets — never commit)
+backend/data/
+
+# Build artifacts (keep small installers tracked)
+dist/*.zip
+
+# IDEs / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Microsoft Edge/Chrome headless PDF
+*.pdf
+
+# Firefox profile (if ever copied into repo)
+Profiles/

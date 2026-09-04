@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Security warning — PhishGuard</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; font: 14px/1.5 system-ui, "Segoe UI", sans-serif;
+      background: radial-gradient(circle at 50% 20%, #122a41 0%, #0b1626 60%, #070d18 100%);
+      color: #eaf2ff; min-height: 100vh; display: flex; align-items: center; justify-content: center; }
+    .card { width: min(620px, 92vw); background: rgba(13, 27, 42, 0.92); border: 1px solid #2a4a66;
+      border-radius: 16px; padding: 36px 30px; text-align: center; box-shadow: 0 18px 60px rgba(0,0,0,0.45); }
+    .warn-icon { width: 58px; height: 58px; margin: 0 auto 12px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center; font: 800 30px system-ui;
+      background: #3a1220; color: #ff6b6b; border: 2px solid #ff6b6b; }
+    .warn-icon.warn { background: #3a2a0d; color: #ffb454; border-color: #ffb454; }
+    .badge { display: inline-block; margin-bottom: 10px; padding: 3px 10px; border-radius: 999px;
+      font-size: 12px; font-weight: 700; letter-spacing: 0.6px; }
+    .bdg-mal { background: #3a1220; color: #ff9f9f; border: 1px solid #ff6b6b; }
+    .bdg-susp { background: #3a2a0d; color: #ffd08a; border: 1px solid #ffb454; }
+    h1 { margin: 0 0 6px; font-size: 21px; }
+    .sub { color: #9db6d0; margin: 0 0 14px; }
+    .mono { font-family: Consolas, "Cascadia Mono", monospace; word-break: break-all; }
+    .urlbox { background: #0b1a2b; border: 1px solid #23455f; border-radius: 8px; padding: 10px 12px;
+      color: #cfe0f3; font-size: 13px; margin: 10px 0; }
+    .meta { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin: 12px 0; }
+    .chip { background: #132a41; border: 1px solid #23455f; border-radius: 8px; padding: 8px 14px; min-width: 120px; }
+    .chip b { display: block; font-size: 11px; color: #8aa4c2; text-transform: uppercase; letter-spacing: .5px; }
+    .chip span { font-size: 14px; font-weight: 700; color: #fff; }
+    .reason { background: #1a0e14; border: 1px solid #6b2f3a; border-radius: 8px; color: #ffb9b9;
+      padding: 10px 14px; margin: 8px 0; font-size: 13px; text-align: left; }
+    .buttons { display: flex; gap: 10px; justify-content: center; margin-top: 22px; flex-wrap: wrap; }
+    button { padding: 11px 18px; border: 0; border-radius: 9px; font: 600 14px system-ui; cursor: pointer; }
+    .primary { background: #2f81f7; color: #fff; }
+    .ghost { background: #1d3a55; color: #cfe0f3; }
+    .danger { background: #b3261e; color: #fff; }
+    button:hover { filter: brightness(1.12); }
+    .note { color: #8aa4c2; font-size: 12px; margin-top: 14px; }
+    .status { min-height: 20px; margin-top: 12px; font-size: 13px; }
+    .status.err { color: #ff9f9f; }
+    .status.ok { color: #5ede8f; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="warn-icon critical" id="warn-icon">!</div>
+    <div><span class="badge bdg-mal" id="badge">MALICIOUS</span></div>
+    <h1 id="title">Think before you click</h1>
+    <p class="sub" id="sub">PhishGuard flagged this link as unsafe.</p>
+
+    <div class="urlbox mono" id="url"></div>
+
+    <div class="meta">
+      <div class="chip"><b>Risk score</b><span id="score">100</span> / 100</div>
+      <div class="chip" id="cat-chip" style="display:none"><b>Category</b><span id="cat"></span></div>
+      <div class="chip" id="imp-chip" style="display:none"><b>Impersonates</b><span id="imp"></span></div>
+    </div>
+    <div class="reason" id="reason" style="display:none"></div>
+
+    <div class="buttons">
+      <button type="button" class="ghost" id="back">Go back</button>
+      <button type="button" class="danger" id="continue">I understand the risks, continue anyway</button>
+    </div>
+    <p class="note">Continuing allows this site for 30 minutes. PhishGuard will warn again after that.</p>
+    <div class="status" id="status"></div>
+  </div>
+
+  <script src="warning.js"></script>
+</body>
+</html>

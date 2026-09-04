@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex,nofollow">
+  <title>Security warning — PhishGuard</title>
+  <link rel="stylesheet" href="/assets/style.css">
+</head>
+<body>
+  <main class="warn-center">
+    <div class="card" style="padding:34px 28px;">
+      <div class="warn-icon critical">!</div>
+      <div style="margin:0 auto 8px;width:max-content;" id="warn-badge"></div>
+      <h1 style="font-size:22px;" id="warn-title">Think before you click</h1>
+      <p class="sub" id="warn-sub" style="font-size:14px;">
+        PhishGuard flagged this link as a likely phishing attempt.
+      </p>
+
+      <div id="warn-body"></div>
+
+      <div class="row" style="justify-content:center;margin-top:22px;">
+        <button type="button" class="btn-primary" id="warn-back">Go back</button>
+        <button type="button" class="btn btn-danger" id="warn-advance">
+          I understand the risks, continue anyway
+        </button>
+      </div>
+      <p class="auth-note">
+        Employees cannot continue. Only administrators and analysts can override
+        the warning.
+      </p>
+    </div>
+  </main>
+
+  <div id="toast"></div>
+  <script src="/scripts/api.js" defer></script>
+  <script src="/scripts/common.js" defer></script>
+  <script src="/scripts/warning.js" defer></script>
+</body>
+</html>

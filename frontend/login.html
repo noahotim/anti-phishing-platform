@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex,nofollow">
+  <title>Sign in — PhishGuard</title>
+  <link rel="stylesheet" href="/assets/style.css">
+</head>
+<body>
+  <div class="auth-wrap">
+    <div class="auth-card">
+      <a class="brand" href="/app/index.html" style="margin-bottom:18px;">
+        <span class="logo">PG</span><span class="gradient-text">PhishGuard</span>
+      </a>
+      <h1>Sign in</h1>
+      <p class="sub">Access the URL protection console.</p>
+      <form id="login-form" autocomplete="off">
+        <label>Work email</label>
+        <input type="email" id="email" placeholder="you@company-example.com" required autocomplete="username">
+        <label>Password</label>
+        <input type="password" id="password" placeholder="••••••••••••" required autocomplete="current-password">
+        <button type="submit" id="login-btn" class="btn-primary btn-block" style="margin-top:18px;">Sign in</button>
+      </form>
+      <div id="login-error" class="hidden small" style="color:#f87171;margin-top:12px;"></div>
+      <p class="auth-note">
+        Anyone can use the URL checker without signing in. An account is only
+        needed to attribute scans to you or to manage the platform.
+      </p>
+    </div>
+  </div>
+  <div id="toast"></div>
+  <script src="/scripts/api.js" defer></script>
+  <script src="/scripts/common.js" defer></script>
+  <script src="/scripts/login.js" defer></script>
+</body>
+</html>

@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex,nofollow">
+  <title>PhishGuard — Console</title>
+  <link rel="stylesheet" href="/assets/style.css">
+</head>
+<body>
+  <header class="topbar" data-topbar></header>
+
+  <main class="wrap">
+    <div class="tabs" id="admin-tabs" style="max-width:1000px;margin-left:auto;margin-right:auto;">
+      <button data-tab="overview" class="active">Overview</button>
+      <button data-tab="reports">Phishing reports</button>
+      <button data-tab="domains">Trusted domains</button>
+      <button data-tab="blocked">Blocked sites</button>
+      <button data-tab="audit">Audit log</button>
+      <button data-tab="users">Users</button>
+      <button data-tab="settings">Settings</button>
+    </div>
+
+    <div id="views" style="max-width:1000px;margin-left:auto;margin-right:auto;"></div>
+  </main>
+
+  <div id="toast"></div>
+  <script src="/scripts/api.js" defer></script>
+  <script src="/scripts/common.js" defer></script>
+  <script src="/scripts/admin.js" defer></script>
+</body>
+</html>

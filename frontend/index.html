@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex,nofollow">
+  <title>PhishGuard — URL Checker</title>
+  <link rel="stylesheet" href="/assets/style.css">
+</head>
+<body>
+  <header class="topbar" data-topbar></header>
+
+  <main class="wrap wrap-narrow">
+    <div class="card" style="padding:26px 24px 22px;">
+      <h1 class="gradient-text" style="font-size:24px;">Check a link before you click</h1>
+      <p class="sub" style="font-size:13.5px;">
+        Paste any URL to see whether it impersonates a known trusted domain, abuses IDN
+        homoglyphs, close-matches a brand, or is confirmed malicious.
+      </p>
+      <form id="checker-form" class="checker-form" style="margin-top:16px;">
+        <input type="url" id="url-input" placeholder="https://example.com/"
+               autocomplete="off" spellcheck="false" required maxlength="4096">
+        <button type="submit" class="btn-primary" id="scan-btn">Analyze</button>
+      </form>
+    </div>
+
+    <div id="result" class="hidden" style="margin-top:22px;"></div>
+    <div id="report-panel" class="hidden" style="margin-top:22px;">
+      <div class="card">
+        <h2>Report this as phishing</h2>
+        <p class="sub">Help the security team — tell them where you saw this link.</p>
+        <textarea id="report-comment" maxlength="4000"
+                  placeholder="Optional: context (e.g. arrived via email from x@..., appeared in a Teams chat, SMS...)."></textarea>
+        <div class="row" style="margin-top:12px;">
+          <button type="button" id="report-btn" class="btn-primary">Submit report</button>
+          <span class="small muted" id="report-msg"></span>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:22px;">
+      <h2>Did you know</h2>
+      <ul class="reasons" style="list-style:none;">
+        <li>One character that looks identical can be a fake domain — e.g. <code>paypa1.com</code> or <code>еxample.com</code> (Cyrillic &ldquo;е&rdquo;).</li>
+        <li>A trusted name as a subdomain, like <code>example.com.secure-login.malware.io</code>, is a classic trick.</li>
+        <li>Check the actual address in your browser, not the friendly text of a link.</li>
+        <li>When in doubt, don&rsquo;t click. Report it below and let the team verify.</li>
+      </ul>
+    </div>
+  </main>
+
+  <div id="toast"></div>
+  <div id="email-tool" class="hidden" style="max-width:720px;margin:0 auto;padding:0 22px;"></div>
+  <footer class="foot">PhishGuard URL Protection &middot; internal security service</footer>
+
+  <script src="/scripts/api.js" defer></script>
+  <script src="/scripts/common.js" defer></script>
+  <script src="/scripts/index.js" defer></script>
+</body>
+</html>

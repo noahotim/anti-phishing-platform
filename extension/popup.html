@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>PhishGuard</title>
+  <style>
+    body { font: 13px/1.4 system-ui, Segoe UI, sans-serif; background:#0d1b2a; color:#eaf2ff;
+      width:300px; margin:0; }
+    .head { display:flex; align-items:center; gap:10px; padding:12px 14px; border-bottom:1px solid #23455f; }
+    .head img { width:26px; height:26px; }
+    .head b { font-size:15px; }
+    .body { padding:12px 14px; }
+    .rowp { display:flex; justify-content:space-between; margin:5px 0; color:#c3d3ea; }
+    .val { color:#fff; font-weight:600; }
+    .paused { color:#ffb454; font-weight:700; }
+    .last { margin-top:8px; padding:8px 10px; border-radius:8px; background:#132a41; border:1px solid #23455f; }
+    .last b { color:#ff9f9f; }
+    .muted { color:#8aa4c2; font-size:12px; }
+    .btn { width:100%; margin-top:9px; padding:9px; border:0; border-radius:7px; cursor:pointer;
+      font-weight:600; font-size:13px; }
+    .primary { background:#2f81f7; color:#fff; }
+    .ghost { background:#1d3a55; color:#cfe0f3; }
+    .scanline { margin-top:9px; font-size:12px; }
+    .ok { color:#5ede8f; } .bad { color:#ff8080; }
+  </style>
+</head>
+<body>
+  <div class="head">
+    <img src="icons/icon48.png" alt="">
+    <b>PhishGuard</b>
+  </div>
+  <div class="body">
+    <div class="rowp"><span>Protecting</span><span class="val" id="threat-count">…</span></div>
+    <div class="rowp"><span>Server</span><span class="val muted" id="server">…</span></div>
+    <div class="rowp"><span>Status</span><span class="val" id="pause-state"><span class="ok">Active</span></span></div>
+
+    <div class="last">
+      <div class="muted">Latest block</div>
+      <div id="last-block"><i class="muted">none yet this session</i></div>
+    </div>
+
+    <div class="scanline">
+      <span id="scan-result"></span>
+    </div>
+
+    <button class="btn primary" id="pause">Pause for 15 minutes</button>
+    <button class="btn ghost" id="scan">Check this page</button>
+    <button class="btn ghost" id="opts">Open options</button>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

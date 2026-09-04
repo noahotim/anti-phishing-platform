@@ -1,0 +1,691 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>PhishGuard — System Operations Manual</title>
+<style>
+  @page { size: A4; margin: 18mm 16mm 18mm 16mm; }
+  * { box-sizing: border-box; }
+  body { font-family: "Segoe UI", "Calibri", Arial, sans-serif; font-size: 10.2pt; color: #1f2937; line-height: 1.5; margin: 0; }
+  h1, h2, h3, h4 { color: #0f2a4a; font-weight: 600; line-height: 1.25; }
+  h1 { font-size: 20pt; margin: 0 0 4pt; }
+  h2 { font-size: 15pt; margin: 22pt 0 8pt; border-bottom: 2px solid #0f2a4a; padding-bottom: 4pt; page-break-after: avoid; }
+  h3 { font-size: 12pt; margin: 16pt 0 6pt; color: #12508a; page-break-after: avoid; }
+  h4 { font-size: 10.5pt; margin: 12pt 0 4pt; color: #374151; page-break-after: avoid; }
+  p { margin: 5pt 0; }
+  .toc-page { page-break-after: always; }
+  .toc li { margin: 3pt 0; }
+  .toc a { color: #12508a; text-decoration: none; }
+  .pagebreak { page-break-before: always; }
+  table { border-collapse: collapse; width: 100%; margin: 8pt 0 12pt; font-size: 9pt; }
+  th, td { border: 1px solid #cbd5e1; padding: 4pt 6pt; text-align: left; vertical-align: top; }
+  th { background: #eef3fa; color: #0f2a4a; font-weight: 600; }
+  tr:nth-child(even) td { background: #f8fafc; }
+  code { font-family: "Cascadia Mono", Consolas, monospace; font-size: 8.8pt; background: #f1f5f9; padding: 1pt 3pt; border-radius: 3px; color: #7c1d1d; }
+  pre { font-family: "Cascadia Mono", Consolas, monospace; font-size: 8.6pt; background: #0f172a; color: #e2e8f0; padding: 10pt 12pt; border-radius: 6px; overflow-x: auto; white-space: pre; }
+  pre code { background: none; color: inherit; padding: 0; }
+  .cover { text-align: center; padding: 60pt 0 0; }
+  .cover .sub { font-size: 13pt; color: #475569; margin-top: 6pt; }
+  .cover .meta { margin-top: 40pt; color: #64748b; font-size: 10pt; }
+  .cover .box { display: block; margin: 30pt auto 0; }
+  .badge { display: inline-block; padding: 1pt 6pt; border-radius: 8pt; font-size: 8pt; font-weight: 600; color: #fff; }
+  .b-safe { background: #16a34a; } .b-susp { background: #d97706; } .b-mal { background: #dc2626; } .b-unk { background: #64748b; } .b-pol { background: #7c3aed; }
+  .note { border-left: 4px solid #12508a; background: #f0f7ff; padding: 6pt 10pt; margin: 8pt 0; border-radius: 0 4px 4px 0; }
+  .warnbox { border-left: 4px solid #d97706; background: #fffbeb; padding: 6pt 10pt; margin: 8pt 0; border-radius: 0 4px 4px 0; }
+  .mono { font-family: "Cascadia Mono", Consolas, monospace; font-size: 8.8pt; }
+  .kb { display:inline-block; border:1px solid #94a3b8; border-radius:3px; padding:0 4px; background:#f8fafc; font:8pt Consolas,monospace; }
+  .small { font-size: 8.6pt; color: #475569; }
+  ol li, ul li { margin: 3pt 0; }
+  .kpi { font-size: 9pt; }
+</style>
+</head>
+<body>
+
+<!-- ==================== COVER ==================== -->
+<div class="cover">
+  <div style="font-size:11pt;letter-spacing:3px;color:#64748b;text-transform:uppercase;">Documentation</div>
+  <h1 style="font-size:26pt;margin-top:14pt;">PhishGuard</h1>
+  <div style="font-size:16pt;color:#12508a;">Anti-Phishing URL Protection Platform</div>
+  <div class="sub">System Operations Manual — how the platform works, end to end</div>
+  <div class="box">
+    <table style="width:340px;margin:0 auto;">
+      <tr><th>Document</th><td>System Operations Manual</td></tr>
+      <tr><th>Version</th><td>1.0</td></tr>
+      <tr><th>Status</th><td>Live deployment</td></tr>
+      <tr><th>Backend</th><td>Python 3.13 &middot; FastAPI &middot; Uvicorn</td></tr>
+      <tr><th>Storage</th><td>SQLite (WAL)</td></tr>
+      <tr><th>Frontend</th><td>Static HTML/CSS/JS (no build step)</td></tr>
+    </table>
+  </div>
+  <div class="meta">This document describes installation, architecture, analysis workflow, threat intelligence,<br>
+  content policy, administration, API, security, and day-to-day operations.</div>
+</div>
+
+<!-- ==================== TOC ==================== -->
+<div class="toc-page">
+<h2 style="border-bottom:none;">Table of contents</h2>
+<ol class="toc">
+  <li><a href="#s1">1&nbsp;&nbsp;System overview</a></li>
+  <li><a href="#s2">2&nbsp;&nbsp;Architecture</a></li>
+  <li><a href="#s3">3&nbsp;&nbsp;Installation &amp; configuration</a></li>
+  <li><a href="#s4">4&nbsp;&nbsp;Starting &amp; running the system</a></li>
+  <li><a href="#s5">5&nbsp;&nbsp;User workflows (checking a URL, the warning page, reports)</a></li>
+  <li><a href="#s6">6&nbsp;&nbsp;How the analyzer works (detection pipeline)</a></li>
+  <li><a href="#s7">7&nbsp;&nbsp;Threat intelligence (live feed, providers, SSRF safety)</a></li>
+  <li><a href="#s8">8&nbsp;&nbsp;Content policy &amp; blocked sites — incl. 8.4 browser guard (gambling, adult, social)</a></li>
+  <li><a href="#s9">9&nbsp;&nbsp;Phishing reports &amp; triage</a></li>
+  <li><a href="#s10">10&nbsp;&nbsp;Users, roles, authentication &amp; sessions</a></li>
+  <li><a href="#s11">11&nbsp;&nbsp;Admin console tour</a></li>
+  <li><a href="#s12">12&nbsp;&nbsp;Audit trail</a></li>
+  <li><a href="#s13">13&nbsp;&nbsp;Rate limiting</a></li>
+  <li><a href="#s14">14&nbsp;&nbsp;API reference</a></li>
+  <li><a href="#s15">15&nbsp;&nbsp;Database schema</a></li>
+  <li><a href="#s16">16&nbsp;&nbsp;Security model &amp; hardening</a></li>
+  <li><a href="#s17">17&nbsp;&nbsp;Testing &amp; quality</a></li>
+  <li><a href="#s18">18&nbsp;&nbsp;Operations runbook (health, logs, restart, LAN/firewall, backup)</a></li>
+  <li><a href="#sa">Appendix A — Environment variables</a></li>
+  <li><a href="#sb">Appendix B — Directory layout</a></li>
+  <li><a href="#sc">Appendix C — Demo data &amp; credentials</a></li>
+  <li><a href="#sd">Appendix D — Verdict reference</a></li>
+</ol>
+</div>
+
+<!-- ==================== 1 ==================== -->
+<h2 id="s1">1&nbsp;&nbsp;System overview</h2>
+<p>PhishGuard is an internal, self-hosted anti-phishing platform. It inspects
+URLs before employees click them, detects look-alike / typosquatted / homoglyph
+versions of your trusted brand domains, cross-checks destinations against a
+continuously refreshed threat-intelligence repository, and — when a policy is
+configured — stops whole categories of sites (betting/gambling, adult content,
+social media) from opening in the browser.</p>
+<h3>Capabilities</h3>
+<ul>
+  <li><b>URL analysis</b> — full decomposition, IDN/UTS-46 normalisation, Unicode homoglyph folding, mixed-script detection, edit-distance typosquatting, TLD-confusion, brand/subdomain embedding, and public-suffix-aware domain matching.</li>
+  <li><b>Threat intelligence</b> — a keyless live feed (abuse.ch URLhaus hostfile) synced on a schedule into a local repository, plus optional keyed per-scan providers (VirusTotal, Google Safe Browsing, URLhaus API).</li>
+  <li><b>Content policy</b> — block categories of websites org-wide; lift a category any time from the console.</li>
+  <li><b>Warning interstitial</b> — a browser warning page stops employees from proceeding; analysts/admins can override after review.</li>
+  <li><b>Email analysis</b> — sender impersonation, display-text-vs-href link mismatches, risky keywords and attachments (API ready for gateway integration).</li>
+  <li><b>Reporting &amp; triage</b> — employees can report suspicious links; analysts/admins triage them to resolution.</li>
+  <li><b>Admin console</b> — dashboard, reports, trusted domains, blocked sites, audit log, users, settings.</li>
+  <li><b>Security built in</b> — PBKDF2-HMAC-SHA256 password hashing, revocable bearer sessions, role-based access control, per-route rate limiting, SSRF-safe analysis (URLs are never fetched), full audit trail, strict CSP.</li>
+</ul>
+<div class="note"><b>How the platform is used in practice.</b> An employee pastes a link into the
+checker (or a gateway calls the API). The platform returns a verdict
+(SAFE / SUSPICIOUS / MALICIOUS / UNKNOWN) with a 0–100 risk score. If the link
+is blocked, the employee is sent to the warning page instead of the site. All
+activity is recorded in an audit log and can be escalated into a phishing report.</div>
+
+<!-- ==================== 2 ==================== -->
+<h2 id="s2" class="pagebreak">2&nbsp;&nbsp;Architecture</h2>
+<p>The platform is a single FastAPI application serving both a REST API and the
+static frontend, with SQLite as its only storage.</p>
+<pre>
+┌───────────────────────── Browser (employees / analysts / admins) ─────────────────────┐
+│  /app/index.html     /app/login.html      /app/admin.html       /app/warning.html     │
+│  URL checker         sign-in              admin console         warning interstitial  │
+└───────────────┬──────────────────────────────────────────────────────────────────────┘
+                │ HTTPS (LAN) · bearer token (JSON)
+┌───────────────▼──────────────────────────────────────────────────────────────────────┐
+│  FastAPI application  (uvicorn, one Python process)                                  │
+│                                                                                      │
+│  ┌───────────────┐ ┌───────────────┐ ┌───────────────┐ ┌───────────────┐            │
+│  │ auth          │ │ analyze       │ │ email         │ │ reports       │            │
+│  │ users         │ │ trusted-domain │ │ blocked-sites │ │ settings      │            │
+│  │ dashboard     │ │ audit-logs    │ │ threat-intel  │ │ /api, static  │            │
+│  └───────┬───────┘ └───────────────┘ └───────────────┘ └───────────────┘            │
+│          │                    │                                                        │
+│  ┌───────▼───────┐    ┌───────▼────────────────────────────────────────┐              │
+│  │ security  ──► ROUTERS ──► services                                   │              │
+│  │ sessions,    │    │  url_parser · normalization · homoglyph           │              │
+│  │ RBAC,        │    │  similarity · public_suffix · risk_scorer         │              │
+│  │ rate_limiter │    │  analyzer · email_analyzer · threat_intel         │              │
+│  │ audit        │    │  ti_sync · content_policy · ssrf                  │              │
+│  └───────┬───────┘    └───────┬────────────────────────────┬────────────┘              │
+│          │                    │                            │                            │
+└──────────┼────────────────────┼────────────────────────────┼───────────────────────────┘
+           ▼                    ▼                            ▼
+   SQLite (WAL)          Keyless feed:                  Keyed per-scan providers
+   antiphishing.db       abuse.ch URLhaus hostfile      VirusTotal · Google Safe
+                        (schedule via background task)  Browsing · URLhaus API
+                                                        (optional, off by default)
+</pre>
+<h3>Layers</h3>
+<table>
+  <tr><th style="width:18%;">Layer</th><th>Technology / location</th><th>Responsibility</th></tr>
+  <tr><td>Frontend</td><td><code>frontend/</code> — static HTML/CSS/JS</td><td>Checker, login, admin console, warning page. Served by FastAPI; no build step.</td></tr>
+  <tr><td>API</td><td><code>backend/app/routers/</code></td><td>REST endpoints for every capability; bearer-token auth; role checks; audit hooks.</td></tr>
+  <tr><td>Services</td><td><code>backend/app/services/</code></td><td>URL parsing, normalisation, homoglyph folding, similarity scoring, risk scoring, analysis orchestration, email analysis, threat-intel fetching/sync.</td></tr>
+  <tr><td>Core modules</td><td><code>database.py</code>, <code>security.py</code>, <code>hashing.py</code>, <code>rate_limiter.py</code>, <code>audit.py</code>, <code>seed.py</code>, <code>content_policy.py</code>, <code>config.py</code></td><td>Schema + queries, sessions/RBAC, password hashing, token-bucket limiting, audit writing, first-run seeding, policy categories, configuration.</td></tr>
+  <tr><td>Storage</td><td>SQLite, WAL mode</td><td>Organisations, users, trusted domains, URL scans, email analyses, reports, known threats, audit logs, settings.</td></tr>
+</table>
+
+<!-- ==================== 3 ==================== -->
+<h2 id="s3" class="pagebreak">3&nbsp;&nbsp;Installation &amp; configuration</h2>
+<h3>Requirements</h3>
+<ul>
+  <li>Python 3.12+ (developed on 3.13) on Windows / macOS / Linux.</li>
+  <li>No other services — SQLite is the standard library.</li>
+</ul>
+<h3>Install steps</h3>
+<pre><code>cd backend
+py -m venv ../.venv                     # create virtual environment
+..\.venv\Scripts\python.exe -m pip install -r requirements.txt
+copy .env.example .env                  # then edit .env (see Appendix A)</code></pre>
+<h3>Configuration</h3>
+<p>Everything is configured through environment variables or a <code>backend/.env</code>
+file, loaded at import time via python-dotenv. Secrets must be set there, never
+hard-coded. The full reference is in <b>Appendix A</b>. Key operational switches:</p>
+<table>
+  <tr><th>Variable</th><th>Default</th><th>Meaning</th></tr>
+  <tr><td><code>HOST</code></td><td><code>0.0.0.0</code></td><td>Listen on all interfaces (LAN reachable).</td></tr>
+  <tr><td><code>PORT</code></td><td><code>8000</code></td><td>HTTP port.</td></tr>
+  <tr><td><code>RATE_LIMIT_ENABLED</code></td><td><code>true</code></td><td>Token-bucket throttling on/off.</td></tr>
+  <tr><td><code>ENABLE_EXTERNAL_TI</code></td><td><code>false</code></td><td>Keyed per-scan providers (needs API keys).</td></tr>
+  <tr><td><code>TI_SYNC_ENABLED</code></td><td><code>false</code> (env default)</td><td>Keyless URLhaus live-feed sync loop. <b>The deployment sets it to <code>true</code>.</b></td></tr>
+  <tr><td><code>DEFAULT_ADMIN_PASSWORD</code></td><td>—</td><td>Password for the initial admin account (set during first seed).</td></tr>
+  <tr><td><code>SEED_ON_STARTUP</code></td><td><code>true</code></td><td>Creates the organisation, admin account, demo trusted domains, and demo blocked sites on first run.</td></tr>
+</table>
+<div class="note">Changing <code>.env</code> requires a restart; settings are read once at startup.</div>
+
+<!-- ==================== 4 ==================== -->
+<h2 id="s4">4&nbsp;&nbsp;Starting &amp; running the system</h2>
+<h3>Run the server (development / live)</h3>
+<pre><code>cd backend
+..\.venv\Scripts\python.exe -m uvicorn app.main:app --host 0.0.0.0 --port 8000</code></pre>
+<p>The uvicorn process performs the following <b>on startup</b>:</p>
+<ol>
+  <li>Loads configuration from <code>.env</code>.</li>
+  <li>Initialises the SQLite database (creates tables; runs the schema migration for existing databases — e.g. adding <code>known_threats.category</code>).</li>
+  <li>Seeds the database if <code>SEED_ON_STARTUP=true</code> (organisation, super admin, trusted domains, demo blocked sites).</li>
+  <li>Starts the background threat-intel sync task if <code>TI_SYNC_ENABLED=true</code> (first sync immediately at startup, then every interval).</li>
+  <li>Serves the API and the static frontend.</li>
+</ol>
+<h3>Where things live</h3>
+<table>
+  <tr><th>Item</th><th>Location</th></tr>
+  <tr><td>SQLite database</td><td><code>backend/data/antiphishing.db</code></td></tr>
+  <tr><td>Frontend</td><td><code>frontend/</code> (served at <code>/app/…</code>, assets at <code>/assets</code>, scripts at <code>/scripts</code>)</td></tr>
+  <tr><td>Runtime logs</td><td>Uvicorn logs go to the console; when run as a background service, to the configured out/err log files.</td></tr>
+  <tr><td>OpenAPI docs</td><td><code>/api/docs</code> when <code>APP_DEBUG=true</code></td></tr>
+</table>
+<h3>Health check</h3>
+<pre><code>curl.exe -s http://127.0.0.1:8000/api/health
+# -&gt; {"status":"ok","service":"Anti-Phishing URL Protection Platform"}</code></pre>
+
+<!-- ==================== 5 ==================== -->
+<h2 id="s5" class="pagebreak">5&nbsp;&nbsp;User workflows</h2>
+<h3>5.1 Checking a link</h3>
+<ol>
+  <li>An employee opens <code>http://&lt;host&gt;:8000/app/index.html</code> and signs in (default demo admin — see Appendix C; other users are created by a super admin).</li>
+  <li>They paste a URL into the checker and submit. The browser calls <code>POST /api/analyze/url</code>.</li>
+  <li>The server runs the full detection pipeline (Section 6) and returns the verdict, risk score, matching signals, and human-readable reasons.</li>
+  <li>The checker UI renders the result. If the verdict is <b>blocked</b> (MALICIOUS from malware/threat-feed, or an active content-policy block), the UI can redirect to <code>/app/warning.html?url=…&amp;scan_id=…</code>.</li>
+</ol>
+<h3>5.2 The warning page</h3>
+<table>
+  <tr><th>Audience</th><th>Behaviour</th></tr>
+  <tr><td>Employees</td><td>See the red/orange warning; <b>cannot continue</b>. The “continue anyway” action is hidden; they are told to go back and verify with the security team.</td></tr>
+  <tr><td>Analysts / admins / super admins</td><td>The warning can be overridden for a test, since these roles have verified-review responsibility.</td></tr>
+</table>
+<p>The warning page shows the exact URL, the risk score, what brand is
+impersonated (when known), and the reasons. For policy blocks it displays a
+distinct <b>“Access blocked by organization policy”</b> banner with the category
+(e.g. <i>Gambling / betting</i>).</p>
+<h3>5.3 Email analysis service</h3>
+<p>An API-ready service: <code>POST /api/email/analyze</code> accepts a raw email and
+evaluates sender impersonation (a display name / domain matching a trusted
+brand), link display-text-vs-href mismatches, risky keywords, and risky
+attachments. It returns the same verdict/score/reasons model. This is designed
+for a mail gateway integration.</p>
+<h3>5.4 Submitting a phishing report</h3>
+<p>Any signed-in user can create a report (<code>POST /api/reports</code>). The reported
+URL is re-analyzed under <code>source=REPORT</code>. Analysts/admins then triage it from
+NEW → INVESTIGATING → CONFIRMED_THREAT / FALSE_POSITIVE → RESOLVED. Employees
+only see their own reports; analysts and admins see org-wide ones.</p>
+
+<!-- ==================== 6 ==================== -->
+<h2 id="s6" class="pagebreak">6&nbsp;&nbsp;How the analyzer works</h2>
+<p>The analyzer is the heart of the platform. For every submitted URL it runs a
+deterministic pipeline (no content is ever fetched — the target server is
+<b>never contacted</b>).</p>
+<h3>6.1 Pipeline stages</h3>
+<table>
+  <tr><th style="width:22%;">Stage</th><th>What it does</th></tr>
+  <tr><td>1. URL decomposition</td><td>Splits scheme, host, port, credentials, path. Extracts the registrable domain and TLD using real public-suffix rules. Punycode is decoded.</td></tr>
+  <tr><td>2. Normalisation</td><td>UTS-46 (IDNA) mapping: case-folds, maps confusable code points, builds the ASCII/punycode form.</td></tr>
+  <tr><td>3. Homoglyph folding</td><td>Folds Unicode confusables to a canonical ASCII form (circled letters, look-alike Latin/Cyrillic characters, etc.).</td></tr>
+  <tr><td>4. Mixed-script / oddity checks</td><td>Detects mixed scripts, excessive/odd characters, IP-literal hosts, credential abuse.</td></tr>
+  <tr><td>5. Trusted-domain comparison</td><td>Compares the destination against the organisation’s trusted domains:
+      exact matches, edit-distance typosquatting, TLD confusion, misleading subdomains, suffix embedding, brand prefixes, circled-letter variants.</td></tr>
+  <tr><td>6. Threat-intel check</td><td>Checks the destination against the local <code>known_threats</code> repository (feed + manual + seed) and, if enabled, keyed per-scan providers (Section 7).</td></tr>
+  <tr><td>7. Risk scoring</td><td>Aggregates weighted signals into a 0–100 score and a classification band; produces human-readable reasons.</td></tr>
+  <tr><td>8. Policy override</td><td>If the host matches a blocked site whose category is active in the org content policy, forces <b>MALICIOUS / 100</b> with a policy reason (Section 8).</td></tr>
+</table>
+<h3>6.2 Signals &amp; reasons</h3>
+<p>Each scan carries a <code>signals</code> object and a <code>reasons</code> list. Example signals:
+<code>exact_match</code>, <code>trusted_exact</code>, <code>matched_domain</code>, <code>edit_distance</code>,
+<code>confusable_exact_match</code>, <code>untrusted_destination</code>, <code>content_blocked</code>,
+<code>blocked_category</code>. Reasons are human strings such as:</p>
+<ul>
+  <li>“Destination domain is not an approved domain”</li>
+  <li>“Domain visually matches approved domain ‘example.com’ (confusable homoglyphs)”</li>
+  <li>“Confirmed malicious by threat intelligence” / “Domain matches known malicious host”</li>
+  <li>“Blocked by organization policy — GAMBLING websites are not allowed”</li>
+</ul>
+<h3>6.3 Classification &amp; thresholds</h3>
+<table>
+  <tr><th>Condition (risk score)</th><th>Verdict</th><th>Suggestion</th></tr>
+  <tr><td>&le; low threshold</td><td><span class="badge b-safe">SAFE</span></td><td>Can visit (when no caveat)</td></tr>
+  <tr><td>&le; moderate threshold</td><td><span class="badge b-susp">SUSPICIOUS</span></td><td>Warn before visiting</td></tr>
+  <tr><td>&le; high threshold</td><td><span class="badge b-mal">MALICIOUS</span></td><td>Block / report</td></tr>
+  <tr><td>&gt; high (critical) or known-threat hit or policy block</td><td><span class="badge b-mal">MALICIOUS</span> (score 100)</td><td>Block / report</td></tr>
+  <tr><td>Signal-driven anomaly</td><td><span class="badge b-unk">UNKNOWN</span></td><td>Needs human review</td></tr>
+</table>
+<p>Threshold defaults: <code>LOW_RISK_THRESHOLD=20</code>, <code>MODERATE_RISK_THRESHOLD=50</code>,
+<code>HIGH_RISK_THRESHOLD=75</code>. They are <b>editable per organisation</b> from Settings
+(must satisfy low &lt; moderate &lt; high). The “unapproved destination is never SAFE”
+rule is safety-first by design.</p>
+
+<!-- ==================== 7 ==================== -->
+<h2 id="s7" class="pagebreak">7&nbsp;&nbsp;Threat intelligence</h2>
+<h3>7.1 Local repository (<code>known_threats</code>)</h3>
+<p>Confirmed threats are stored in <code>known_threats</code> and checked for every scan.
+Rows come from one of three sources:</p>
+<table>
+  <tr><th>Source</th><th>Origin</th><th>Never evicted</th></tr>
+  <tr><td><code>SEED</code></td><td>Demo data created at first startup</td><td>Yes</td></tr>
+  <tr><td><code>MANUAL</code></td><td>Admins via the console/API (blocked sites)</td><td>Yes</td></tr>
+  <tr><td><code>URLHAUS_FEED</code></td><td>Live keyless feed (abuse.ch URLhaus hostfile)</td><td>No — oldest evicted past cap</td></tr>
+</table>
+<h3>7.2 Keyless live feed (<code>ti_sync</code>)</h3>
+<ul>
+  <li>Downloads the public URLhaus hostfile (<code>https://urlhaus.abuse.ch/downloads/hostfile/</code>) — no API key.</li>
+  <li>Parses both <code>0.0.0.0 &lt;host&gt;</code> and <code>127.0.0.1 &lt;host&gt;</code> lines, dedupes, and upserts into <code>known_threats</code> as <code>URLHAUS_FEED</code>.</li>
+  <li>Scheduling: immediate sync at startup, then every <code>TI_SYNC_INTERVAL_MIN</code> minutes via a background asyncio task, cancelled cleanly on shutdown.</li>
+  <li>Idempotent: re-syncing an unchanged feed adds 0 rows.</li>
+  <li>Caps: at most <code>TI_SYNC_MAX_ITEMS</code> per sync; when the table exceeds <code>TI_SYNC_MAX_TOTAL</code>, the oldest feed rows are deleted (never manual/seed rows).</li>
+  <li>Admins can trigger <code>POST /api/threat-intel/sync</code> (logged <code>SYNC_THREAT_INTEL</code>).</li>
+</ul>
+<h3>7.3 Keyed per-scan providers</h3>
+<p>Optional (<code>ENABLE_EXTERNAL_TI=true</code>, off by default): VirusTotal,
+Google Safe Browsing, URLhaus API. Require API keys. Results are cached per scan
+in <code>threat_intel_results</code>.</p>
+<h3>7.4 SSRF safety</h3>
+<p>All outbound TI traffic — the bulk hostfile download and the keyed per-scan
+providers — goes through the SSRF guard in <code>services/ssrf.py</code>:</p>
+<ul>
+  <li>Only a fixed allow-list of TI hosts may be contacted (e.g. <code>urlhaus.abuse.ch</code>, <code>phishstats.info</code>, the keyed provider base URLs).</li>
+  <li>HTTPS only, connection timeouts, redirects re-validated per hop and rejected if they leave the allow-list.</li>
+  <li>The analyzer itself never fetches user-supplied URLs — SSRF is structurally impossible.</li>
+</ul>
+
+<!-- ==================== 8 ==================== -->
+<h2 id="s8" class="pagebreak">8&nbsp;&nbsp;Content policy &amp; blocked sites</h2>
+<p>The content-policy feature lets an organisation block whole categories of
+websites — for example betting/gambling — in the browser. It works through the
+same scan/warning flow as malware.</p>
+<h3>8.1 Categories</h3>
+<table>
+  <tr><th>Code</th><th>Label shown to users</th></tr>
+  <tr><td><code>GAMBLING</code></td><td>Gambling / betting</td></tr>
+  <tr><td><code>ADULT</code></td><td>Adult content</td></tr>
+  <tr><td><code>SOCIAL_MEDIA</code></td><td>Social media</td></tr>
+  <tr><td><code>OTHER</code></td><td>Other blocked content</td></tr>
+  <tr><td><span class="mono">(empty)</span></td><td>Uncategorized — always treated as malware, regardless of policy</td></tr>
+</table>
+<h3>8.2 Enforcement model</h3>
+<ul>
+  <li>A blocked site is a <code>known_threats</code> row, optionally carrying a category.</li>
+  <li><b>Uncategorized rows are unconditional malware.</b> They block every scan.</li>
+  <li><b>Categorized rows are enforced only while that category is active</b> in the org content policy (stored as JSON under <code>system_settings</code>, key <code>content_policy</code>; default <span class="mono">["GAMBLING","ADULT"]</span>).</li>
+  <li>When a scan hits an active categorized entry, the analyzer forces <span class="badge b-mal">MALICIOUS</span> / score <b>100</b> and returns <code>content_blocked=true</code>, <code>blocked_category</code>, and the policy reason.</li>
+  <li>The warning page renders a dedicated <b>Policy block</b> banner with the friendly category label.</li>
+  <li>Toggling a category off in Settings <b>lifts the block immediately</b> for those categorized sites (uncategorized rows stay blocked).</li>
+  <li>Matching is done on the exact registered domain and its subdomains (no broad TLD matches), making bypass via subdomains impossible.</li>
+</ul>
+<h3>8.3 Managing from the console</h3>
+<p>The admin console has a <b>Blocked sites</b> tab:</p>
+<ul>
+  <li><b>Content policy</b> card — checkbox the categories that should be blocked, save.</li>
+  <li><b>Add a blocked site</b> — domain + category (leave category empty = malware/always blocked) + note.</li>
+  <li><b>Import CSV</b> — columns <code>domain[,category[,note]]</code>; an optional header row is skipped; result reports added/skipped/errors.</li>
+  <li><b>List / edit / delete</b> — filter by category, edit category/note, unblock.</li>
+</ul>
+<p>Every mutation is audited: <code>CREATE_BLOCKED_SITE</code>, <code>UPDATE_BLOCKED_SITE</code>,
+<code>DELETE_BLOCKED_SITE</code>, <code>IMPORT_BLOCKED_SITES</code>, <code>UPDATE_CONTENT_POLICY</code>.</p>
+<h3>8.4 Browser guard — automatic blocking (no link-pasting)</h3>
+<p>The <b>PhishGuard browser extension</b> (Manifest V3, Chrome/Edge) makes blocking
+automatic: every site a user opens is checked against the platform before it
+loads, and blocked pages are redirected to the same warning interstitial. Users
+never have to paste a link into the checker.</p>
+<p>Two layers work together:</p>
+<ul>
+  <li><b>Instant network layer.</b> The extension pulls <code>GET /api/guard/rules</code>
+  (manual + seed blocked domains, filtered to the categories currently active in
+  the content policy) and installs <code>declarativeNetRequest</code> redirect rules. Known
+  bad/policy pages are stopped at the network level — they can’t even begin loading.</li>
+  <li><b>Per-navigation check.</b> Every top-level <code>http(s)</code> navigation is sent to
+  <code>POST /api/analyze/precheck</code> — anonymous and side-effect-free (no scan rows, no
+  audit). Blocked verdicts redirect the tab to
+  <code>/app/warning.html?blocked=1&url=…&label=…&reason=…</code>, which renders for
+  signed-out users too. A 10-minute host cache keeps traffic near one request per
+  new domain.</li>
+</ul>
+<div class="note"><b>Behaviour notes.</b> The guard never blocks the platform itself, only
+top-level pages (sub-frames/ads are untouched), fails open while the server is
+unreachable, can be paused for 15 minutes from the popup, and by default blocks
+only MALICIOUS verdicts (a “also hold SUSPICIOUS” option exists). The long tail —
+threat feed hosts, typosquats, homoglyphs — is caught by the per-navigation
+check in both layers. Deploy via <span class="mono">chrome://extensions → Load unpacked</span>
+pointing at <code>extension/</code>, configure the server URL in the extension Options, then
+distribute fleet-wide with an enterprise ExtensionSettings policy (see
+<code>extension/README.md</code>).</div>
+
+<!-- ==================== 9 ==================== -->
+<h2 id="s9">9&nbsp;&nbsp;Phishing reports &amp; triage</h2>
+<ol>
+  <li>An employee clicks <b>Report</b> on a suspicious result (or submits a URL directly via <code>POST /api/reports</code>).</li>
+  <li>The system re-analyzes the URL under <code>source=REPORT</code> and stores the report as <code>NEW</code>.</li>
+  <li>An analyst or admin opens the <b>Phishing reports</b> tab and reviews the full analysis (verdict, score, reasons).</li>
+  <li>They change the status: <code>INVESTIGATING</code> → <code>CONFIRMED_THREAT</code> (or <code>FALSE_POSITIVE</code>) → <code>RESOLVED</code>.</li>
+  <li>Status changes are audited, keeping a trail of who decided what and when.</li>
+</ol>
+<div class="note">Reports can be filterable by status (all statuses are visible to analysts/admins; employees only see their own).</div>
+
+<!-- ==================== 10 ==================== -->
+<h2 id="s10" class="pagebreak">10&nbsp;&nbsp;Users, roles, authentication &amp; sessions</h2>
+<h3>10.1 Roles (RBAC)</h3>
+<table>
+  <tr><th>Role</th><th>Capabilities</th></tr>
+  <tr><td><code>EMPLOYEE</code></td><td>Check URLs, analyze email, report phishing. No management, no dashboard, cannot override warnings.</td></tr>
+  <tr><td><code>SECURITY_ANALYST</code></td><td>Everything above, plus dashboard view and report triage; can override warnings; cannot manage domains/blocked sites/settings.</td></tr>
+  <tr><td><code>ADMIN</code></td><td>Analyst scope + manage trusted domains, blocked sites &amp; content policy, audit log, risk thresholds.</td></tr>
+  <tr><td><code>SUPER_ADMIN</code></td><td>Everything, including user &amp; role administration (create users, change roles, disable accounts, reset passwords).</td></tr>
+</table>
+<h3>10.2 Authentication &amp; sessions</h3>
+<ul>
+  <li>Passwords hashed with <b>PBKDF2-HMAC-SHA256</b> (310,000 rounds by default), unique per-password salts.</li>
+  <li>Login returns a bearer token stored by the frontend in <code>localStorage</code> and sent as <code>Authorization: Bearer …</code>.</li>
+  <li>Sessions are <b>revocable</b>: logout revokes the token server-side; disabled accounts lose access; tokens expire after <code>TOKEN_TTL_HOURS</code> (default 7 days).</li>
+  <li>Failed logins are limited (auth rate bucket) and logged as <code>AUTH_FAILED</code> audit entries.</li>
+  <li>On 401, the frontend clears the token and redirects to the login page.</li>
+</ul>
+
+<!-- ==================== 11 ==================== -->
+<h2 id="s11">11&nbsp;&nbsp;Admin console tour</h2>
+<table>
+  <tr><th>Tab</th><th>What it shows / does</th></tr>
+  <tr><td>Overview</td><td>KPIs (scans, blocked, safe, malicious in 30 days), daily scan trend, risk distribution, top impersonated domains, recent scans, and the <b>Live threat feed</b> card with “Sync now”.</td></tr>
+  <tr><td>Phishing reports</td><td>Report inbox with status filter, review panel with full analysis.</td></tr>
+  <tr><td>Trusted domains</td><td>Add/edit/delete approved domains, mark critical brands, define allowed subdomains, CSV import &amp; export.</td></tr>
+  <tr><td>Blocked sites</td><td>Content-policy toggles, add blocked sites, CSV import, list/filter/edit/delete.</td></tr>
+  <tr><td>Audit log</td><td>Filterable trail of every audited action (time, actor, entity, details, IP, result).</td></tr>
+  <tr><td>Users</td><td>Create users, change roles, enable/disable accounts, reset passwords (super admin only).</td></tr>
+  <tr><td>Settings</td><td>Risk-score thresholds (per organisation).</td></tr>
+</table>
+
+<!-- ==================== 12 ==================== -->
+<h2 id="s12" class="pagebreak">12&nbsp;&nbsp;Audit trail</h2>
+<p>Every meaningful action writes an <code>audit_logs</code> row: <code>actor</code> (email/IP/UA),
+<code>action</code>, <code>entity</code>, before/after JSON state, timestamp (UTC), and result.
+Representative actions:</p>
+<table>
+  <tr><th>Action</th><th>Trigger</th></tr>
+  <tr><td><code>SCAN_URL</code> / <code>ANALYZE_EMAIL</code></td><td>Every URL / email analysis</td></tr>
+  <tr><td><code>REPORT_CREATED</code> … <code>REPORT_UPDATED</code></td><td>Phishing report lifecycle</td></tr>
+  <tr><td><code>TRUSTED_DOMAIN_CREATED/UPDATED/DELETED/IMPORTED</code></td><td>Trusted-domain management</td></tr>
+  <tr><td><code>CREATE/UPDATE/DELETE_BLOCKED_SITE</code>, <code>IMPORT_BLOCKED_SITES</code>, <code>UPDATE_CONTENT_POLICY</code></td><td>Blocked-site / content-policy management</td></tr>
+  <tr><td><code>SYNC_THREAT_INTEL</code></td><td>Manual feed sync</td></tr>
+  <tr><td><code>AUTH_LOGIN</code> / <code>AUTH_LOGOUT</code> / <code>AUTH_FAILED</code></td><td>Session events</td></tr>
+  <tr><td><code>USER_CREATED</code> / <code>USER_UPDATED</code> / <code>USER_PASSWORD_RESET</code></td><td>User administration</td></tr>
+  <tr><td><code>THRESHOLDS_UPDATED</code></td><td>Risk-threshold changes</td></tr>
+</table>
+
+<!-- ==================== 13 ==================== -->
+<h2 id="s13">13&nbsp;&nbsp;Rate limiting</h2>
+<p>Token-bucket middleware groups routes into buckets:</p>
+<table>
+  <tr><th>Group</th><th>Default</th><th>Variable</th></tr>
+  <tr><td>Analysis endpoints</td><td>30 / minute</td><td><code>ANALYZE_RATE_LIMIT</code></td></tr>
+  <tr><td>Auth endpoints</td><td>10 / minute</td><td><code>AUTH_RATE_LIMIT</code></td></tr>
+  <tr><td>Everything else</td><td>120 / minute</td><td><code>GENERIC_RATE_LIMIT</code></td></tr>
+  <tr><td>Master switch</td><td>on</td><td><code>RATE_LIMIT_ENABLED</code></td></tr>
+</table>
+<p>Over-limit requests receive <code>429 Too Many Requests</code>.</p>
+
+<!-- ==================== 14 ==================== -->
+<h2 id="s14" class="pagebreak">14&nbsp;&nbsp;API reference</h2>
+<p>Base URL <code>http://&lt;host&gt;:8000</code>. All endpoints (except <code>/api/health</code>,
+<code>/api/auth/login</code>) require <code>Authorization: Bearer &lt;token&gt;</code>. OpenAPI at
+<code>/api/docs</code> when <code>APP_DEBUG=true</code>.</p>
+<h3>Core</h3>
+<table>
+  <tr><th>Method &amp; path</th><th>Purpose</th></tr>
+  <tr><td><code>POST /api/auth/login</code></td><td>Sign in → <code>{token, user}</code></td></tr>
+  <tr><td><code>POST /api/auth/logout</code> · <code>GET /api/auth/me</code></td><td>Revoke token / current user</td></tr>
+  <tr><td><code>POST /api/analyze/url</code></td><td>Analyze a URL → full scan payload</td></tr>
+  <tr><td><code>POST /api/analyze/precheck</code></td><td>Anonymous, side-effect-free verdict (browser guard)</td></tr>
+  <tr><td><code>GET /api/guard/rules</code></td><td>Anonymous blocked-domain feed for the browser guard</td></tr>
+  <tr><td><code>GET /api/analyze/{scan_id}</code></td><td>Fetch a stored scan</td></tr>
+  <tr><td><code>POST /api/email/analyze</code></td><td>Analyze a raw email</td></tr>
+  <tr><td><code>GET /api/health</code></td><td>Liveness probe</td></tr>
+</table>
+<h3>Analysis result payload</h3>
+<pre><code>{
+  "id": 42, "url": "https://examp1e.com/login", "ascii_domain": "examp1e.com",
+  "classification": "MALICIOUS", "risk_score": 63, "risk_level": "HIGH",
+  "reasons": [...], "signals": {...},
+  "content_blocked": true, "blocked_category": "GAMBLING",
+  "matched_domain": "example.com", "trusted": false,
+  "threat_intel": [...], "safe_to_visit": false
+}</code></pre>
+<h3>Reports &amp; dashboard</h3>
+<table>
+  <tr><th>Method &amp; path</th><th>Purpose</th></tr>
+  <tr><td><code>POST /api/reports</code></td><td>Create a report (URL re-analyzed)</td></tr>
+  <tr><td><code>GET /api/reports?status=&amp;mine=</code></td><td>List reports</td></tr>
+  <tr><td><code>PUT /api/reports/{id}</code></td><td>Update status / comment</td></tr>
+  <tr><td><code>GET /api/dashboard/statistics?days=</code></td><td>KPIs, trend, distribution, recent scans, threat-feed status</td></tr>
+</table>
+<h3>Trusted domains</h3>
+<table>
+  <tr><th>Method &amp; path</th><th>Purpose</th></tr>
+  <tr><td><code>GET/POST /api/trusted-domains</code></td><td>List / create</td></tr>
+  <tr><td><code>PUT/DELETE /api/trusted-domains/{id}</code></td><td>Update / delete</td></tr>
+  <tr><td><code>POST /api/trusted-domains/import</code> · <code>GET /export</code></td><td>CSV bulk operations</td></tr>
+</table>
+<h3>Blocked sites &amp; content policy</h3>
+<table>
+  <tr><th>Method &amp; path</th><th>Purpose</th></tr>
+  <tr><td><code>GET/POST /api/blocked-sites</code></td><td>List (filters: category, source) / create</td></tr>
+  <tr><td><code>PUT/DELETE /api/blocked-sites/{id}</code></td><td>Update / unblock</td></tr>
+  <tr><td><code>POST /api/blocked-sites/import</code></td><td>CSV import</td></tr>
+  <tr><td><code>GET/PUT /api/settings/content-policy</code></td><td>Read / set active categories</td></tr>
+</table>
+<h3>Administration</h3>
+<table>
+  <tr><th>Method &amp; path</th><th>Purpose</th></tr>
+  <tr><td><code>GET/POST /api/users</code> · <code>PUT /api/users/{id}</code></td><td>User administration (super admin)</td></tr>
+  <tr><td><code>GET /api/audit-logs</code> · <code>GET /api/audit-logs/actions</code></td><td>Audit trail</td></tr>
+  <tr><td><code>GET/PUT /api/settings/risk-thresholds</code></td><td>Risk bands</td></tr>
+  <tr><td><code>GET /api/threat-intel</code> · <code>POST /api/threat-intel/sync</code></td><td>Feed status / manual sync</td></tr>
+</table>
+
+<!-- ==================== 15 ==================== -->
+<h2 id="s15" class="pagebreak">15&nbsp;&nbsp;Database schema</h2>
+<p>SQLite in WAL mode, <code>foreign_keys=ON</code>, 30&nbsp;s busy timeout, thread-local
+connections. All timestamps UTC ISO-8601. Tables:</p>
+<table>
+  <tr><th>Table</th><th>Purpose / key columns</th></tr>
+  <tr><td><code>organizations</code></td><td>Tenant rows (this deployment uses org 1).</td></tr>
+  <tr><td><code>users</code></td><td>Email, full name, role, status (ACTIVE/DISABLED), password hash, last login.</td></tr>
+  <tr><td><code>sessions</code></td><td>Revocable bearer tokens.</td></tr>
+  <tr><td><code>trusted_domains</code></td><td>Domain, normalized form, category, critical flag, allowed subdomains, notes.</td></tr>
+  <tr><td><code>known_threats</code></td><td>Domain, note, source (<code>SEED</code>/<code>MANUAL</code>/<code>URLHAUS_FEED</code>), <b>category</b> (policy categories or empty = malware). Unique <code>(org_id, domain)</code>.</td></tr>
+  <tr><td><code>url_scans</code></td><td>URL, verdict, score, signals/reasons JSON, matched domain, created_at.</td></tr>
+  <tr><td><code>email_analyses</code></td><td>Subject, verdict, signals, link findings, attachment risks.</td></tr>
+  <tr><td><code>threat_intel_results</code></td><td>Per-scan provider answers (cached).</td></tr>
+  <tr><td><code>reports</code></td><td>URL, analysis snapshot, status, reviewer, comments.</td></tr>
+  <tr><td><code>audit_logs</code></td><td>Full audit trail (action, entity, prev/new JSON, ip, UA, result).</td></tr>
+  <tr><td><code>system_settings</code></td><td>Per-org key/value JSON — e.g. <code>risk_thresholds</code>, <code>content_policy</code>, <code>ti_sync</code>.</td></tr>
+</table>
+<p>First-run migration is automatic; existing databases are upgraded in place on
+startup (e.g. adding <code>known_threats.category</code>).</p>
+
+<!-- ==================== 16 ==================== -->
+<h2 id="s16" class="pagebreak">16&nbsp;&nbsp;Security model &amp; hardening</h2>
+<ul>
+  <li><b>No SSRF:</b> the analyzer never fetches user URLs; outbound TI is allow-listed + redirect-guarded.</li>
+  <li><b>Credentials:</b> PBKDF2-HMAC-SHA256, per-password salts; no plain-text storage; secrets only in <code>.env</code> (never in source).</li>
+  <li><b>Sessions:</b> revocable server-side tokens with TTL.</li>
+  <li><b>RBAC:</b> every route enforced by role dependencies; employees cannot manage anything.</li>
+  <li><b>Rate limiting:</b> per-route-group buckets (Section 13).</li>
+  <li><b>Audit:</b> every mutation and auth event recorded (Section 12).</li>
+  <li><b>Frontend hardening:</b> strict Content-Security-Policy headers; <b>no inline scripts</b>; all API data rendered through <code>UI.esc()</code> (no self-XSS surface); login/session-expiry redirects.</li>
+  <li><b>Boundaries:</b> LAN-facing by design; inbound firewall open only on TCP 8000 for the private network.</li>
+</ul>
+
+<!-- ==================== 17 ==================== -->
+<h2 id="s17">17&nbsp;&nbsp;Testing &amp; quality</h2>
+<ul>
+  <li>Full pytest suite (<b>134 tests</b>) in <code>backend/tests/</code>, running against a temporary SQLite DB — your real database is never touched.</li>
+  <li>Coverage: URL parser, homoglyphs, similarity, risk scorer, full analyzer dataset, SSRF guard, auth/RBAC, the full HTTP API, rate limiting, email analysis, threat-feed sync, content policy, and browser-guard endpoints (<code>precheck</code> / <code>guard/rules</code>).</li>
+  <li>Frontend and extension JS are syntax-checked with <code>node --check</code>.</li>
+</ul>
+<pre><code>cd backend
+$env:PYTHONIOENCODING='utf-8'
+..\.venv\Scripts\python.exe -m pytest -q     # expect: 134 passed</code></pre>
+
+<!-- ==================== 18 ==================== -->
+<h2 id="s18" class="pagebreak">18&nbsp;&nbsp;Operations runbook</h2>
+<h3>18.1 Daily health check</h3>
+<pre><code>curl.exe -s http://127.0.0.1:8000/api/health
+# log into the console and check the Overview tab
+#   - expected: KPIs update, “Live threat feed” card shows known hosts &amp; last sync</code></pre>
+<h3>18.2 Verify a policy block works end to end</h3>
+<pre><code># scan the demo gambling site (should come back MALICIOUS / 100 / policy reason)
+curl.exe -s -X POST http://127.0.0.1:8000/api/analyze/url ^
+  -H "Authorization: Bearer $tok" -H "Content-Type: application/json" ^
+  -d '{"url":"https://bet-demo-casino.com/promotions"}'</code></pre>
+<h3>18.3 Verify the browser guard works end to end</h3>
+<pre><code># 1. guard feed should list the protected demo domains
+curl.exe -s http://127.0.0.1:8000/api/guard/rules
+# 2. anonymous precheck should BLOCK the demo sites
+curl.exe -s -X POST http://127.0.0.1:8000/api/analyze/precheck ^
+  -H "Content-Type: application/json" ^
+  -d '{"url":"https://bet-demo-casino.com/promotions"}'
+# 3. in the browser: load the extension (chrome://extensions -> Load unpacked ->
+#    extension/), set the server URL in Options, then open bet-demo-casino.com —
+#    it must redirect to the warning page without you touching the console.</code></pre>
+<h3>18.4 Restart the server</h3>
+<ol>
+  <li>Stop the uvicorn process (Task Manager / the stored PID file under <code>%TEMP%\phishguard.pid</code>).</li>
+  <li>Start again (Section 4). Startup runs the DB migration, seed (idempotent), and an immediate feed sync.</li>
+  <li>Confirm <code>/api/health</code> returns <code>ok</code> and the LAN URL resolves.</li>
+</ol>
+<h3>18.5 Manual threat-feed sync</h3>
+<p>Console → Overview → <b>Sync now</b>, or <code>POST /api/threat-intel/sync</code>.
+The response reports fetched/added/total; idempotent runs report <code>added: 0</code>.</p>
+<h3>18.6 LAN / firewall</h3>
+<p>Server binds <code>0.0.0.0</code>. A Windows Firewall inbound rule
+(<b>“PhishGuard 8000”</b>, TCP 8000, Allow, Private/Domain) exposes the console to
+LAN machines at <code>http://192.168.100.43:8000</code>. Leave Public disabled.
+The browser guard extension talks to the same origin.</p>
+<h3>18.7 Logs &amp; troubleshooting</h3>
+<table>
+  <tr><th>Symptom</th><th>Check</th><th>Fix</th></tr>
+  <tr><td>Site opens despite being blocked</td><td>Category active in content policy?</td><td>Enable the category in Settings → Blocked sites.</td></tr>
+  <tr><td>Feed shows “never” / old time</td><td><code>.env</code> TI_SYNC_ENABLED, network to URLhaus</td><td>Set to true, run <b>Sync now</b>.</td></tr>
+  <tr><td>Can’t reach from another device</td><td>Firewall rule, IP, port</td><td>Verify rule Private/Domain; use <code>192.168.100.43:8000</code>.</td></tr>
+  <tr><td>Extension doesn’t block a site</td><td>Options → server URL, rule refresh, pause state, category active</td><td>Set the server URL, click <b>Refresh blocked domains</b>, confirm not paused for 15 min.</td></tr>
+  <tr><td>429 Too Many Requests</td><td>Rate-limit buckets</td><td>Wait for bucket refill or raise limits.</td></tr>
+  <tr><td>Session keep expiring</td><td><code>TOKEN_TTL_HOURS</code></td><td>Increase TTL if desired.</td></tr>
+  <tr><td>Backup/restore</td><td>Copy <code>backend/data/antiphishing.db</code> (stop server first for a consistent snapshot)</td><td>Restore by replacing the file; startup migrates if needed.</td></tr>
+</table>
+
+<!-- ==================== APPENDICES ==================== -->
+<h2 id="sa" class="pagebreak">Appendix A — Environment variables</h2>
+<table>
+  <tr><th>Variable</th><th>Default</th><th>Description</th></tr>
+  <tr><td><code>APP_ENV</code></td><td>development</td><td>Environment label.</td></tr>
+  <tr><td><code>APP_DEBUG</code></td><td>false</td><td>Enables OpenAPI docs, debug output.</td></tr>
+  <tr><td><code>HOST</code> / <code>PORT</code></td><td>0.0.0.0 / 8000</td><td>Bind address / port.</td></tr>
+  <tr><td><code>DATABASE_PATH</code></td><td>data/antiphishing.db</td><td>SQLite file location.</td></tr>
+  <tr><td><code>SEED_ON_STARTUP</code></td><td>true</td><td>Seed org/admin/demo data.</td></tr>
+  <tr><td><code>DEFAULT_ADMIN_EMAIL</code></td><td>admin@company-example.com</td><td>Initial admin account.</td></tr>
+  <tr><td><code>DEFAULT_ADMIN_PASSWORD</code></td><td>—</td><td>Initial admin password (set once at seed).</td></tr>
+  <tr><td><code>TOKEN_TTL_HOURS</code></td><td>168 (7 days)</td><td>Session token lifetime.</td></tr>
+  <tr><td><code>PBKDF2_ROUNDS</code></td><td>310000</td><td>Password-hash work factor.</td></tr>
+  <tr><td><code>RATE_LIMIT_ENABLED</code></td><td>true</td><td>Master rate-limit switch.</td></tr>
+  <tr><td><code>ANALYZE_RATE_LIMIT</code></td><td>30/minute</td><td>Analysis bucket.</td></tr>
+  <tr><td><code>AUTH_RATE_LIMIT</code></td><td>10/minute</td><td>Auth bucket.</td></tr>
+  <tr><td><code>GENERIC_RATE_LIMIT</code></td><td>120/minute</td><td>Default bucket.</td></tr>
+  <tr><td><code>LOW/MODERATE/HIGH_RISK_THRESHOLD</code></td><td>20 / 50 / 75</td><td>Classification bands (editable per org).</td></tr>
+  <tr><td><code>ENABLE_EXTERNAL_TI</code></td><td>false</td><td>Keyed per-scan providers.</td></tr>
+  <tr><td><code>VIRUSTOTAL_API_KEY</code> / <code>GOOGLE_SAFEBROWSING_API_KEY</code></td><td>—</td><td>Provider API keys.</td></tr>
+  <tr><td><code>TI_FETCH_TIMEOUT_S</code></td><td>5</td><td>Outbound TI timeout.</td></tr>
+  <tr><td><code>TI_SYNC_ENABLED</code></td><td>false (deployment: true)</td><td>Keyless live-feed sync loop.</td></tr>
+  <tr><td><code>TI_SYNC_INTERVAL_MIN</code></td><td>30</td><td>Feed sync interval.</td></tr>
+  <tr><td><code>TI_SYNC_MAX_ITEMS</code></td><td>5000</td><td>Max rows imported per sync.</td></tr>
+  <tr><td><code>TI_SYNC_MAX_TOTAL</code></td><td>100000</td><td>Max total feed rows before eviction.</td></tr>
+  <tr><td><code>STATIC_DIR</code></td><td>frontend/</td><td>Frontend files location.</td></tr>
+  <tr><td><code>APP_ENV_FILE</code></td><td>—</td><td>Extra .env file to load.</td></tr>
+</table>
+
+<h2 id="sb">Appendix B — Directory layout</h2>
+<pre><code>antiphishing-platform/
+├── backend/
+│   ├── app/
+│   │   ├── main.py            # app assembly, static mounts, lifespan, TI loop
+│   │   ├── config.py          # environment-driven settings
+│   │   ├── database.py        # SQLite schema, migrations, helpers
+│   │   ├── security.py        # sessions, RBAC dependencies
+│   │   ├── hashing.py         # PBKDF2-HMAC-SHA256
+│   │   ├── rate_limiter.py    # token-bucket middleware
+│   │   ├── audit.py           # audit-log writer
+│   │   ├── seed.py            # initial org/admin/demo data
+│   │   ├── content_policy.py  # categories (GAMBLING, ADULT, …)
+│   │   ├── routers/           # auth, analyze, email, reports, dashboard,
+│   │   │                      #   trusted-domains, blocked-sites, guard,
+│   │   │                      #   audit, users, settings, threat-intel
+│   │   └── services/          # url_parser, normalization, homoglyph,
+│   │                          #   similarity, public_suffix, risk_scorer,
+│   │                          #   analyzer, email_analyzer, threat_intel,
+│   │                          #   ti_sync, ssrf
+│   ├── tests/                 # 134-test pytest suite
+│   ├── requirements.txt
+│   ├── .env.example
+│   └── data/antiphishing.db   # runtime database
+├── extension/                 # MV3 browser guard (manifest, background, popup, options, icons)
+├── frontend/                  # index, login, admin, warning + css/js
+└── docs/                      # documentation set</code></pre>
+
+<h2 id="sc">Appendix C — Demo data &amp; credentials</h2>
+<table>
+  <tr><th>Item</th><th>Value</th></tr>
+  <tr><td>Admin URL</td><td><code>http://&lt;host&gt;:8000/app/admin.html</code></td></tr>
+  <tr><td>Employee URL</td><td><code>http://&lt;host&gt;:8000/app/index.html</code></td></tr>
+  <tr><td>Default admin (demo)</td><td><code>admin@company-example.com</code> / password from <code>.env</code></td></tr>
+  <tr><td>Demo gambling site</td><td><code>https://bet-demo-casino.com/…</code> → blocked GAMBLING</td></tr>
+  <tr><td>Demo adult site</td><td><code>https://adult-demo-content.net/</code> → blocked ADULT</td></tr>
+  <tr><td>Demo malware sites</td><td><code>https://paypa1-secure.com</code>, <code>microsoft-support-alerts.net</code>, <code>webmail-microsoft-login.com</code> → MALICIOUS</td></tr>
+</table>
+<div class="warnbox">Change the demo admin password immediately after first login
+(Users tab → Reset pwd, or via the console). The password is set once at seed;
+rotating it later keeps a live-server credential valid until rotated again
+only if done through the app — never edit the database by hand unless the
+account password is unknown.</div>
+
+<h2 id="sd">Appendix D — Verdict reference</h2>
+<table>
+  <tr><th>Verdict</th><th>Meaning</th><th>Risk score</th></tr>
+  <tr><td><span class="badge b-safe">SAFE</span></td><td>Approved destination, no caveats (unapproved never SAFE)</td><td>&le; low (20)</td></tr>
+  <tr><td><span class="badge b-susp">SUSPICIOUS</span></td><td>Risky but not confirmed malicious — warn</td><td>≤ moderate (50)</td></tr>
+  <tr><td><span class="badge b-mal">MALICIOUS</span></td><td>Confirmed attack, typosquat, or policy block — block</td><td>≤ high (75), or 100 for known-threat/policy</td></tr>
+  <tr><td><span class="badge b-unk">UNKNOWN</span></td><td>Signal-driven anomaly — manual review</td><td>—</td></tr>
+</table>
+<p class="small">Generated for the PhishGuard live deployment. Dashboard KPIs, threat-feed totals,
+and blocked-site counts vary over time as the URLhaus feed refreshes.</p>
+
+</body>
+</html>
