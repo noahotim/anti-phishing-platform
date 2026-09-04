@@ -38,3 +38,7 @@ Thumbs.db
 
 # Firefox profile (if ever copied into repo)
 Profiles/
+
+# Signed build (per-user, contains Mozilla signature) — keep local only
+*-signed.xpi
+
