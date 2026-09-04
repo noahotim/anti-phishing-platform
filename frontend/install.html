@@ -28,29 +28,26 @@
     var isFirefox = ua.indexOf('firefox') !== -1 || ua.indexOf('fxios') !== -1;
     var isChrome = ua.indexOf('chrome') !== -1 && ua.indexOf('edg') === -1;
     var isEdge = ua.indexOf('edg') !== -1;
-    var ffUrl = "https://github.com/noahotim/anti-phishing-platform/releases/download/v1.1.5/phishguard-firefox-signed.xpi";
-    var chUrl = "https://github.com/noahotim/anti-phishing-platform/releases/download/v1.1.5/phishguard-chrome.zip";
-    // Also available via the Noah URL directly (same files, cached on GitHub)
-    // For direct auto-install without GitHub, we can also serve from /app/ — but GitHub is faster for phones
+    // Direct from your server (Noah URL) — instant, no GitHub redirect
+    var ffUrl = "./phishguard-firefox-signed.xpi";
+    var chUrl = "./phishguard-chrome.zip";
     var msg = document.getElementById('msg');
     var manual = document.getElementById('manual');
     var ffLink = document.getElementById('ff-link');
     var chLink = document.getElementById('ch-link');
     ffLink.href = ffUrl;
     chLink.href = chUrl;
-    // Try auto-trigger based on browser
-    setTimeout(function(){
-      if (isFirefox) {
-        msg.textContent = "Firefox detected — starting install…";
-        window.location.href = ffUrl;
-      } else if (isChrome || isEdge) {
-        msg.textContent = "Chrome/Edge detected — downloading…";
-        window.location.href = chUrl;
-      } else {
-        msg.textContent = "Choose your browser below to install.";
-      }
-      manual.classList.remove('hidden');
-    }, 600);
+    // Show manual buttons immediately so tapping is instant
+    manual.classList.remove('hidden');
+    if (isFirefox) {
+      msg.textContent = "Firefox detected — tap below to install (or wait 1s)…";
+      setTimeout(function(){ window.location.href = ffUrl; }, 300);
+    } else if (isChrome || isEdge) {
+      msg.textContent = "Chrome/Edge detected — tap below to download (or wait 1s)…";
+      setTimeout(function(){ window.location.href = chUrl; }, 300);
+    } else {
+      msg.textContent = "Tap your browser below to install — instant.";
+    }
   })();
   </script>
 </body>
