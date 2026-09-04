@@ -366,21 +366,16 @@ class UrlAnalyzer:
         if not trusted and not policy_reason:
             try:
                 if database.Config.get_whitelist_only(self.org_id):
-                    # Allow genuine SAFE/UNKNOWN that are not in a blocked
-                    # category; block social/betting/porn/illegal (via
-                    # content-policy above) and all SUSPICIOUS/MALICIOUS.
-                    is_genuine = classification in (SAFE, UNKNOWN)
-                    if not is_genuine:
-                        signals["whitelist_blocked"] = True
-                        signals["content_blocked"] = True
-                        signals["blocked_category"] = "WHITELIST"
-                        classification = MALICIOUS
-                        risk_score = 100
-                        risk_level = "CRITICAL"
-                        whitelist_reason = (
-                            "Blocked by whitelist policy — only allowed sites can be visited. "
-                            "Add this site to your allowed list to visit it."
-                        )
+                    signals["whitelist_blocked"] = True
+                    signals["content_blocked"] = True
+                    signals["blocked_category"] = "WHITELIST"
+                    classification = MALICIOUS
+                    risk_score = 100
+                    risk_level = "CRITICAL"
+                    whitelist_reason = (
+                        "Blocked by whitelist policy — only allowed sites can be visited. "
+                        "Add this site to your allowed list to visit it."
+                    )
             except Exception:
                 pass
         if whitelist_reason:

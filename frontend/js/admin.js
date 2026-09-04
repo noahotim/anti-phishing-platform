@@ -766,11 +766,11 @@
           "</div>" +
           '<button class="btn-primary" id="t-save" style="margin-top:14px;">Save thresholds</button></div>' +
           '<div class="card" style="margin-top:22px;"><div class="head-row"><h2>Whitelist-only mode</h2></div>' +
-          '<p class="sub">When enabled, <strong>only genuine SAFE sites and your Trusted domains are allowed</strong>. Social, betting, porn, illegal (and all unknown/suspicious/malicious) are blocked — even if not in Trusted. Content-policy categories (gambling, adult, social, other) are still enforced for everyone. Add the genuine sites you need to <a href="#" id="wl-go-trusted" style="color:#8aa4c2; text-decoration:underline;">Trusted domains</a> for guaranteed access.</p>' +
+          '<p class="sub">When enabled, <strong>every site not in your Trusted domains list is blocked</strong> — even google.com. Only domains you explicitly allow can be visited. Use this for lockdown / kiosk / exam environments. Social/betting/porn/illegal are still blocked via content policy even if in Trusted.</p>' +
           '<label style="display:flex; align-items:center; gap:10px; margin-top:12px; cursor:pointer;">' +
           '<input type="checkbox" id="wl-toggle"' + wlChecked + ' style="width:18px; height:18px;">' +
-          '<span><strong>Whitelist-only — allow genuine, block bad categories + unknown</strong></span></label>' +
-          '<div id="wl-warn" class="hidden" style="margin-top:10px; padding:10px; background:#3a1a1a; border:1px solid #6b2f2f; border-radius:8px; color:#ffb9b9; font-size:13px;">⚠️ When ON, only SAFE genuine sites and Trusted domains are allowed. Social/betting/porn/illegal and all unknown are blocked. Configure blocked categories in <a href="#" id="wl-go-policy" style="color:#ffb9b9; text-decoration:underline;">Blocked sites → Content policy</a>.</div>' +
+          '<span><strong>Block all sites except Trusted domains</strong> — whitelist-only</span></label>' +
+          '<div id="wl-warn" class="hidden" style="margin-top:10px; padding:10px; background:#3a1a1a; border:1px solid #6b2f2f; border-radius:8px; color:#ffb9b9; font-size:13px;">⚠️ When this is ON, users will only be able to visit sites you have added to <a href="#" id="wl-go-trusted" style="color:#ffb9b9; text-decoration:underline;">Trusted domains</a>. Make sure google.com, your LMS, etc. are in the allow-list before enabling. Social/betting/porn/illegal remain blocked via content policy.</div>' +
           '<button class="btn-primary" id="wl-save" style="margin-top:12px;">Save whitelist setting</button></div>' +
           '<div class="card danger-zone" style="margin-top:22px;"><h2>Danger zone</h2>' +
           '<p class="sub">Changing thresholds or enabling whitelist-only affects every user immediately.</p></div>';
@@ -798,9 +798,9 @@
         });
         document.getElementById("wl-save").addEventListener("click", function () {
           var enabled = document.getElementById("wl-toggle").checked;
-          if (enabled && !confirm("Enable whitelist-only? Only SAFE genuine + Trusted will be allowed. Social/betting/porn/illegal and all unknown will be blocked. Continue?")) return;
+          if (enabled && !confirm("Enable whitelist-only? EVERY site not in Trusted domains will be blocked — including search engines and genuine sites. Continue?")) return;
           API.updateWhitelistOnly(enabled).then(function () {
-            UI.toast(enabled ? "Whitelist-only ENABLED — genuine SAFE + Trusted allowed, bad categories + unknown blocked." : "Whitelist-only disabled.", enabled ? "ok" : "ok");
+            UI.toast(enabled ? "Whitelist-only ENABLED — only Trusted domains are now allowed." : "Whitelist-only disabled.", enabled ? "err" : "ok");
           }).catch(function (err) { UI.toast(err.message, "err"); });
         });
       }).catch(function (err) {
