@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PhishGuard — Phone Setup (One Scan)</title>
+  <link rel="stylesheet" href="/assets/style.css">
+</head>
+<body>
+  <main class="wrap wrap-narrow" style="text-align:center; padding-top:30px;">
+    <div class="card" style="padding:26px 22px;">
+      <h1 class="gradient-text" style="font-size:22px;">PhishGuard — One-scan setup for phones</h1>
+      <p class="sub" id="status" style="margin-top:8px;">Setting up…</p>
+
+      <div id="actions" style="margin-top:18px; display:flex; gap:10px; flex-wrap:wrap; justify-content:center;">
+        <a id="ff-btn" class="btn-primary" style="padding:12px 18px; border-radius:8px; text-decoration:none;" href="./phishguard-firefox-signed.xpi">Firefox — Tap to install</a>
+        <a id="web-btn" class="btn-primary" style="padding:12px 18px; border-radius:8px; text-decoration:none; background:#1d3a55;" href="./index.html">Any browser — Tap to check links</a>
+      </div>
+
+      <div style="margin-top:18px; text-align:left; background:#0b1a2b; border:1px solid #23455f; border-radius:8px; padding:14px;">
+        <b style="font-size:13px;">For every phone browser (Chrome, Samsung Internet, Safari):</b>
+        <p class="sub" style="font-size:13px; margin:6px 0 0;">If your browser can't install extensions, use the <b>web checker</b> — it uses the same Noah URL as the extension:</p>
+        <div style="margin-top:10px; display:flex; gap:8px;">
+          <input id="check-input" type="url" placeholder="Paste any link here — e.g. https://example.com" style="flex:1; padding:10px; border-radius:6px; background:#132a41; color:#eaf2ff; border:1px solid #23455f;">
+          <button id="check-btn" class="btn-primary" style="padding:10px 14px;">Check</button>
+        </div>
+        <div id="check-out" style="margin-top:10px; font-size:13px;"></div>
+        <p class="sub" style="font-size:12px; margin-top:10px;">This works on <b>every</b> phone browser — no extension needed. For system-wide blocking, set your phone's Private DNS to <code>fda-wishlist-finds-protection.trycloudflare.com</code> (Android: Settings → Network → Private DNS).</p>
+      </div>
+
+      <p class="sub" style="margin-top:14px; font-size:12px;">Already installed? You are protected — <a href="./feedback.html" style="color:#8aa4c2;">Send feedback</a></p>
+    </div>
+  </main>
+  <script>
+  (function(){
+    var ua = navigator.userAgent.toLowerCase();
+    var isFirefox = ua.indexOf('firefox') !== -1 || ua.indexOf('fxios') !== -1;
+    var status = document.getElementById('status');
+    // Detect if already installed via content script flag
+    function isInstalled(){ return window.phishGuardInstalled || document.documentElement.getAttribute('data-phishguard-installed') === 'true'; }
+    function showInstalled(){
+      status.innerHTML = '<span style="color:#5ede8f;">✓ PhishGuard is already installed</span> — you are protected on every browser via the web checker below.';
+      document.getElementById('actions').style.display = 'none';
+    }
+    if (isInstalled()) { showInstalled(); return; }
+    setTimeout(function(){ if (isInstalled()) showInstalled(); }, 400);
+    window.addEventListener('phishguard-installed', function(){ showInstalled(); });
+    // Auto-trigger for Firefox only (the only phone browser that can auto-install)
+    if (isFirefox) {
+      status.textContent = "Firefox detected — tap below to install instantly, or wait 1s…";
+      setTimeout(function(){ if(!isInstalled()){ try{ window.location.href="./phishguard-firefox-signed.xpi"; }catch(e){} } }, 600);
+    } else {
+      status.textContent = "Tap below — Firefox installs instantly, any other browser uses the web checker (works on every phone).";
+    }
+    // Web checker inline (uses the same precheck as the extension)
+    var btn = document.getElementById('check-btn');
+    var input = document.getElementById('check-input');
+    var out = document.getElementById('check-out');
+    btn.addEventListener('click', function(){
+      var url = input.value.trim();
+      if (!url) { out.innerHTML = '<span style="color:#ff9f9f;">Paste a URL first.</span>'; return; }
+      out.textContent = 'Checking…';
+      fetch('./../api/analyze/precheck', { // fallback to absolute if needed
+        method: 'POST', headers: {'content-type':'application/json'}, body: JSON.stringify({url:url})
+      }).catch(function(){ return fetch('/api/analyze/precheck', {method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify({url:url})}); })
+      .then(function(r){ if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); })
+      .then(function(j){
+        var blocked = j.blocked;
+        var cat = j.blocked_category || j.classification;
+        var reason = j.blocked_reason || '';
+        if (blocked) out.innerHTML = '<span style="color:#ff8080;">✗ BLOCKED ('+cat+')</span> — '+ reason;
+        else out.innerHTML = '<span style="color:#5ede8f;">✓ SAFE</span> — '+ (j.classification||'SAFE') + (j.matched_domain ? ' (matches '+j.matched_domain+')' : '');
+      }).catch(function(e){ out.innerHTML = '<span style="color:#ff9f9f;">Check failed: '+e.message+'</span>'; });
+    });
+  })();
+  </script>
+</body>
+</html>
