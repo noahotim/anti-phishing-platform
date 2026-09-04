@@ -22,20 +22,35 @@
   </main>
   <script>
   // Instant for every phone — no detection wait. Links already point to direct /app/ files.
-  // We still try a gentle auto-start in the background for Firefox (which can auto-install),
-  // but the buttons are already tappable before any JS runs.
   (function(){
+    // Detect if already installed via content script flag
+    function checkInstalled() {
+      var isInstalled = window.phishGuardInstalled || document.documentElement.getAttribute('data-phishguard-installed') === 'true';
+      if (isInstalled) {
+        document.getElementById('msg').innerHTML = '<span style="color:#5ede8f;">✓ PhishGuard is already installed in this browser</span> — you are protected.';
+        document.getElementById('manual').innerHTML = '<p class="sub">You are all set. If you need to update, tap below to reinstall the latest version.</p>' +
+          '<div style="display:flex; gap:10px; flex-wrap:wrap; justify-content:center; margin-top:10px;">' +
+          '<a class="btn-primary" style="padding:12px 18px; border-radius:8px; text-decoration:none;" href="./phishguard-firefox-signed.xpi">Reinstall Firefox</a>' +
+          '<a class="btn-primary" style="padding:12px 18px; border-radius:8px; text-decoration:none; background:#1d3a55;" href="./phishguard-chrome.zip">Reinstall Chrome/Edge</a></div>';
+        return true;
+      }
+      return false;
+    }
+    // Check immediately and again after a short delay (content script runs at document_start)
+    if (checkInstalled()) return;
+    setTimeout(function(){ checkInstalled(); }, 300);
+    window.addEventListener('phishguard-installed', function(){ checkInstalled(); });
+
     var ua = navigator.userAgent.toLowerCase();
     var isFirefox = ua.indexOf('firefox') !== -1 || ua.indexOf('fxios') !== -1;
-    // For Firefox, try to auto-trigger the XPI install without blocking the UI
-    if (isFirefox) {
-      // Small delay so the page renders first, then trigger
+    // For Firefox, try to auto-trigger the XPI install without blocking the UI, but only if not already installed
+    if (isFirefox && !checkInstalled()) {
       setTimeout(function(){
-        try { window.location.href = "./phishguard-firefox-signed.xpi"; } catch(e){}
+        if (!checkInstalled()) {
+          try { window.location.href = "./phishguard-firefox-signed.xpi"; } catch(e){}
+        }
       }, 400);
     }
-    // For every other browser (Chrome, Edge, Samsung Internet, Opera, etc.) we do NOT auto-download —
-    // the user just taps the clearly labelled button above, which is instant.
   })();
   </script>
 </body>
