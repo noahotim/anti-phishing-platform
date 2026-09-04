@@ -350,3 +350,38 @@ class Config:
                 (org_id, json.dumps(categories), actor_id, utcnow_iso()),
             )
             return prev
+
+    @staticmethod
+    def get_whitelist_only(org_id: int) -> bool:
+        with db() as conn:
+            row = conn.execute(
+                "SELECT value FROM system_settings WHERE org_id=? AND key=?",
+                (org_id, "whitelist_only"),
+            ).fetchone()
+        if not row:
+            return False
+        try:
+            v = json.loads(row["value"])
+            return bool(v)
+        except (ValueError, TypeError, json.JSONDecodeError):
+            return False
+
+    @staticmethod
+    def set_whitelist_only(org_id: int, enabled: bool, actor_id: Any) -> str:
+        with db() as conn:
+            row = conn.execute(
+                "SELECT value FROM system_settings WHERE org_id=? AND key=?",
+                (org_id, "whitelist_only"),
+            ).fetchone()
+            prev = row["value"] if row else "{}"
+            conn.execute(
+                """
+                INSERT INTO system_settings (org_id, key, value, updated_by, updated_at)
+                VALUES (?, 'whitelist_only', ?, ?, ?)
+                ON CONFLICT(org_id, key) DO UPDATE SET
+                    value=excluded.value, updated_by=excluded.updated_by,
+                    updated_at=excluded.updated_at
+                """,
+                (org_id, json.dumps(bool(enabled)), actor_id, utcnow_iso()),
+            )
+            return prev

@@ -168,5 +168,9 @@
     updateContentPolicy: function (categories) {
       return request("PUT", "/api/settings/content-policy", { categories: categories });
     },
+    getWhitelistOnly: function () { return request("GET", "/api/settings/whitelist-only"); },
+    updateWhitelistOnly: function (enabled) {
+      return request("PUT", "/api/settings/whitelist-only", { enabled: enabled });
+    },
   };
 })();

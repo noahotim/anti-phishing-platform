@@ -348,6 +348,27 @@ class UrlAnalyzer:
         if policy_reason:
             scored.reasons = list(scored.reasons) + [policy_reason]
 
+        # ---- whitelist-only mode (admin lockdown) ----
+        # When enabled, every non-trusted destination is blocked.
+        whitelist_reason = None
+        if not trusted and not policy_reason:
+            try:
+                if database.Config.get_whitelist_only(self.org_id):
+                    signals["whitelist_blocked"] = True
+                    signals["content_blocked"] = True
+                    signals["blocked_category"] = "WHITELIST"
+                    classification = MALICIOUS
+                    risk_score = 100
+                    risk_level = "CRITICAL"
+                    whitelist_reason = (
+                        "Blocked by whitelist policy — only allowed sites can be visited. "
+                        "Add this site to your allowed list to visit it."
+                    )
+            except Exception:
+                pass
+        if whitelist_reason:
+            scored.reasons = list(scored.reasons) + [whitelist_reason]
+
         result = AnalysisResult(
             url=url.strip(),
             hostname=parsed.hostname,

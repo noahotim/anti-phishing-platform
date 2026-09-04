@@ -751,30 +751,58 @@
 
   /* ===================== Settings ===================== */
   function renderSettings(view) {
-    API.getThresholds().then(function (t) {
-      view.innerHTML =
-        '<div class="card"><div class="head-row"><h2>Risk score thresholds</h2></div>' +
-        '<p class="sub">Scores above HIGH are MALICIOUS, above MODERATE are SUSPICIOUS; must satisfy low &lt; moderate &lt; high.</p>' +
-        '<div class="grid-3">' +
-        '<div><label>Low</label><input type="number" id="t-low" min="0" max="49" value="' + t.low + '"></div>' +
-        '<div><label>Moderate</label><input type="number" id="t-moderate" min="1" max="74" value="' + t.moderate + '"></div>' +
-        '<div><label>High</label><input type="number" id="t-high" min="2" max="99" value="' + t.high + '"></div>' +
-        "</div>" +
-        '<button class="btn-primary" id="t-save" style="margin-top:14px;">Save thresholds</button></div>' +
-        '<div class="card danger-zone" style="margin-top:22px;"><h2>Danger zone</h2>' +
-        '<p class="sub">Changing thresholds affects classification for your whole organisation.</p></div>';
-      document.getElementById("t-save").addEventListener("click", function () {
-        var body = {
-          low: Number(document.getElementById("t-low").value),
-          moderate: Number(document.getElementById("t-moderate").value),
-          high: Number(document.getElementById("t-high").value),
-        };
-        API.updateThresholds(body).then(function () {
-          UI.toast("Thresholds saved", "ok");
-        }).catch(function (err) { UI.toast(err.message, "err"); });
+    // Load thresholds and whitelist-only in parallel
+    Promise.all([API.getThresholds(), API.getWhitelistOnly().catch(function () { return { enabled: false }; })])
+      .then(function (res) {
+        var t = res[0], w = res[1];
+        var wlChecked = w.enabled ? " checked" : "";
+        view.innerHTML =
+          '<div class="card"><div class="head-row"><h2>Risk score thresholds</h2></div>' +
+          '<p class="sub">Scores above HIGH are MALICIOUS, above MODERATE are SUSPICIOUS; must satisfy low &lt; moderate &lt; high.</p>' +
+          '<div class="grid-3">' +
+          '<div><label>Low</label><input type="number" id="t-low" min="0" max="49" value="' + t.low + '"></div>' +
+          '<div><label>Moderate</label><input type="number" id="t-moderate" min="1" max="74" value="' + t.moderate + '"></div>' +
+          '<div><label>High</label><input type="number" id="t-high" min="2" max="99" value="' + t.high + '"></div>' +
+          "</div>" +
+          '<button class="btn-primary" id="t-save" style="margin-top:14px;">Save thresholds</button></div>' +
+          '<div class="card" style="margin-top:22px;"><div class="head-row"><h2>Whitelist-only mode</h2></div>' +
+          '<p class="sub">When enabled, <strong>every site not in your Trusted domains list is blocked</strong> — even google.com. Only domains you explicitly allow can be visited. Use this for lockdown / kiosk / exam environments.</p>' +
+          '<label style="display:flex; align-items:center; gap:10px; margin-top:12px; cursor:pointer;">' +
+          '<input type="checkbox" id="wl-toggle"' + wlChecked + ' style="width:18px; height:18px;">' +
+          '<span><strong>Block all sites except Trusted domains</strong> — whitelist-only</span></label>' +
+          '<div id="wl-warn" class="hidden" style="margin-top:10px; padding:10px; background:#3a1a1a; border:1px solid #6b2f2f; border-radius:8px; color:#ffb9b9; font-size:13px;">⚠️ When this is ON, users will only be able to visit sites you have added to <a href="#" id="wl-go-trusted" style="color:#ffb9b9; text-decoration:underline;">Trusted domains</a>. Make sure google.com, your LMS, etc. are in the allow-list before enabling.</div>' +
+          '<button class="btn-primary" id="wl-save" style="margin-top:12px;">Save whitelist setting</button></div>' +
+          '<div class="card danger-zone" style="margin-top:22px;"><h2>Danger zone</h2>' +
+          '<p class="sub">Changing thresholds or enabling whitelist-only affects every user immediately.</p></div>';
+        // Warnings
+        function updateWarn() {
+          var on = document.getElementById("wl-toggle").checked;
+          var w2 = document.getElementById("wl-warn");
+          if (w2) w2.classList.toggle("hidden", !on);
+        }
+        document.getElementById("wl-toggle").addEventListener("change", updateWarn);
+        updateWarn();
+        var goTrusted = document.getElementById("wl-go-trusted");
+        if (goTrusted) goTrusted.addEventListener("click", function (e) { e.preventDefault(); document.querySelector('[data-tab="domains"]').click(); });
+        document.getElementById("t-save").addEventListener("click", function () {
+          var body = {
+            low: Number(document.getElementById("t-low").value),
+            moderate: Number(document.getElementById("t-moderate").value),
+            high: Number(document.getElementById("t-high").value),
+          };
+          API.updateThresholds(body).then(function () {
+            UI.toast("Thresholds saved", "ok");
+          }).catch(function (err) { UI.toast(err.message, "err"); });
+        });
+        document.getElementById("wl-save").addEventListener("click", function () {
+          var enabled = document.getElementById("wl-toggle").checked;
+          if (enabled && !confirm("Enable whitelist-only? EVERY site not in Trusted domains will be blocked — including search engines. Continue?")) return;
+          API.updateWhitelistOnly(enabled).then(function () {
+            UI.toast(enabled ? "Whitelist-only ENABLED — only Trusted domains are now allowed." : "Whitelist-only disabled.", enabled ? "err" : "ok");
+          }).catch(function (err) { UI.toast(err.message, "err"); });
+        });
+      }).catch(function (err) {
+        view.innerHTML = '<div class="card"><div class="empty">' + UI.esc(err.message) + "</div></div>";
       });
-    }).catch(function (err) {
-      view.innerHTML = '<div class="card"><div class="empty">' + UI.esc(err.message) + "</div></div>";
-    });
   }
 })();

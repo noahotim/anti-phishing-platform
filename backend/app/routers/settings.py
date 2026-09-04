@@ -45,6 +45,29 @@ class ContentPolicyIn(BaseModel):
     categories: list[str] = Field(default_factory=list, max_length=16)
 
 
+class WhitelistOnlyIn(BaseModel):
+    enabled: bool
+
+
+@router.get("/whitelist-only")
+def get_whitelist_only(user: CurrentUser = Depends(require_admin)):
+    return {"enabled": database.Config.get_whitelist_only(user.org_id)}
+
+
+@router.put("/whitelist-only")
+def update_whitelist_only(
+    body: WhitelistOnlyIn,
+    request: Request,
+    user: CurrentUser = Depends(require_admin),
+):
+    prev = database.Config.set_whitelist_only(user.org_id, bool(body.enabled), user.id)
+    audit(action="UPDATE_WHITELIST_ONLY", entity="system_settings",
+          entity_id=f"whitelist_only:{user.org_id}",
+          org_id=user.org_id, actor_id=user.id, actor_email=user.email,
+          ip=client_ip(request), prev={"value": prev}, new={"enabled": bool(body.enabled)})
+    return {"enabled": bool(body.enabled)}
+
+
 @router.get("/content-policy")
 def get_content_policy(user: CurrentUser = Depends(require_admin)):
     return database.Config.get_content_policy(user.org_id)
