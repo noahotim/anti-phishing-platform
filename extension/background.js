@@ -23,7 +23,7 @@ const CACHE_TTL_MS = 10 * 60 * 1000;
 const CACHE_MAX = 3000;
 const RULE_REFRESH_MIN = 30;
 const MAX_DNR_RULES = 4900;
-const BYPASS_MS = 30 * 60 * 1000;
+const BYPASS_MS = 3 * 60 * 1000;
 
 let cfg = { server: DEFAULT_SERVER, blockSuspicious: false, pauseUntil: 0 };
 let threatHosts = [];          // [{host, label, category}]

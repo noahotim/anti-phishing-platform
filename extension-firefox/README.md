@@ -8,7 +8,7 @@ dynamic rules, but `background.js` guards for that and works in both.
 Since v1.1.0 the warning interstitial is **extension-hosted**
 (`warning.html`/`warning.js`) rather than the server page. Blocked sites
 bounce to it, and **"I understand the risks, continue anyway"** lets the user
-proceed to the site for 30 minutes (host bypass; the background skips that
+proceed to the site for 3 minutes (host bypass; the background skips that
 host and, on Chrome, drops its DNR redirect rule). The server warning page is
 still used by the authenticated web-console flows, where only admins/analysts
 can override.

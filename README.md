@@ -39,7 +39,7 @@ The extension calls two anonymous endpoints:
 
 Blocked sites bounce to an extension-hosted red warning page. Since v1.1.0 a
 **"I understand the risks, continue anyway"** button lets the user proceed to
-a flagged site for 30 minutes (30-min host bypass, DNR rule removed on Chrome).
+a flagged site for 3 minutes (3-min host bypass, DNR rule removed on Chrome).
 
 ### Browser support
 
