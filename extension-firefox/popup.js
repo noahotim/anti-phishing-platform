@@ -83,4 +83,15 @@ $("scan").addEventListener("click", async () => {
 
 $("opts").addEventListener("click", () => NS.runtime.openOptionsPage());
 
+$("feedback").addEventListener("click", async (e) => {
+  e.preventDefault();
+  try {
+    const st = await send({ type: "get-status" });
+    const url = (st.server || "https://fda-wishlist-finds-protection.trycloudflare.com") + "/app/feedback.html";
+    NS.tabs.create({ url });
+  } catch (_) {
+    NS.tabs.create({ url: "https://fda-wishlist-finds-protection.trycloudflare.com/app/feedback.html" });
+  }
+});
+
 refresh();

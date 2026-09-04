@@ -26,6 +26,7 @@ from .routers import (
     blocked_sites,
     dashboard,
     email,
+    feedback,
     guard,
     reports,
     settings as settings_router,
@@ -157,6 +158,7 @@ app.include_router(email.router)
 app.include_router(threat_intel.router)
 app.include_router(blocked_sites.router)
 app.include_router(guard.router)
+app.include_router(feedback.router)
 
 
 @app.get("/api/health")

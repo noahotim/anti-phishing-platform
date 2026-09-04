@@ -160,6 +160,21 @@ CREATE TABLE IF NOT EXISTS system_settings (
 );
 CREATE UNIQUE INDEX IF NOT EXISTS idx_settings_org_key
     ON system_settings(org_id, key);
+
+CREATE TABLE IF NOT EXISTS feedback (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    org_id     INTEGER REFERENCES organizations(id),
+    name       TEXT NOT NULL DEFAULT '',
+    email      TEXT NOT NULL DEFAULT '',
+    rating     INTEGER NOT NULL DEFAULT 0 CHECK (rating BETWEEN 0 AND 5),
+    category   TEXT NOT NULL DEFAULT 'GENERAL',
+    message    TEXT NOT NULL,
+    browser    TEXT NOT NULL DEFAULT '',
+    url        TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_feedback_created ON feedback(created_at);
+CREATE INDEX IF NOT EXISTS idx_feedback_rating  ON feedback(rating);
 """
 
 

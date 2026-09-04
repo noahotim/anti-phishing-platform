@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Feedback — PhishGuard</title>
+  <link rel="stylesheet" href="/assets/style.css">
+</head>
+<body>
+  <header class="topbar" data-topbar></header>
+
+  <main class="wrap wrap-narrow">
+    <div class="card" style="padding:26px 24px;">
+      <h1 class="gradient-text" style="font-size:22px;">Feedback</h1>
+      <p class="sub">Help improve PhishGuard — tell us what works and what doesn't. Works for everyone, inside or outside your network. Also available as a <a href="https://docs.google.com/forms/create" target="_blank" rel="noopener">Google Form</a> if you prefer.</p>
+
+      <form id="fb-form" style="margin-top:18px;">
+        <div class="row" style="gap:12px; flex-wrap:wrap;">
+          <label style="flex:1; min-width:200px;">Name (optional)<br><input type="text" id="fb-name" maxlength="120" placeholder="Your name" style="width:100%;"></label>
+          <label style="flex:1; min-width:200px;">Email (optional)<br><input type="email" id="fb-email" maxlength="200" placeholder="you@example.com" style="width:100%;"></label>
+        </div>
+        <div class="row" style="gap:12px; margin-top:12px; flex-wrap:wrap;">
+          <label>Rating<br>
+            <select id="fb-rating" style="min-width:140px;">
+              <option value="0">— No rating —</option>
+              <option value="5">★★★★★ Excellent</option>
+              <option value="4">★★★★ Good</option>
+              <option value="3">★★★ Okay</option>
+              <option value="2">★★ Needs work</option>
+              <option value="1">★ Poor</option>
+            </select>
+          </label>
+          <label>Category<br>
+            <select id="fb-category" style="min-width:160px;">
+              <option value="GENERAL">General</option>
+              <option value="BUG">Bug report</option>
+              <option value="FEATURE">Feature request</option>
+              <option value="PERFORMANCE">Performance</option>
+              <option value="OTHER">Other</option>
+            </select>
+          </label>
+        </div>
+        <label style="display:block; margin-top:12px;">Message *<br>
+          <textarea id="fb-message" required minlength="3" maxlength="5000" rows="5" placeholder="What should we fix or build next?" style="width:100%;"></textarea>
+        </label>
+        <div class="row" style="margin-top:14px; align-items:center;">
+          <button type="submit" class="btn-primary" id="fb-submit">Send feedback</button>
+          <span class="small muted" id="fb-msg"></span>
+        </div>
+      </form>
+
+      <hr style="margin:22px 0; border:none; border-top:1px solid #23455f;">
+      <h2 style="font-size:16px;">Prefer Google Forms?</h2>
+      <p class="sub">Create a Google Form in 1 minute: go to <a href="https://docs.google.com/forms" target="_blank" rel="noopener">forms.google.com</a> → Blank form → add these questions, then share the link with your users. Suggested questions:</p>
+      <ul class="reasons" style="font-size:13px;">
+        <li>How useful is PhishGuard? (Linear scale 1–5)</li>
+        <li>What do you like most? (Paragraph)</li>
+        <li>What should be improved? (Paragraph)</li>
+        <li>Which browser do you use? (Multiple choice: Chrome / Firefox / Edge / Other)</li>
+        <li>May we contact you? (Short answer: email, optional)</li>
+      </ul>
+      <p class="sub">Paste your Google Form link here to show it inside PhishGuard: <code id="gform-hint">https://docs.google.com/forms/d/e/.../viewform?embedded=true</code></p>
+    </div>
+
+    <div class="card" style="margin-top:18px; padding:16px 20px;">
+      <h2 style="font-size:15px;">Recent public feedback</h2>
+      <div id="fb-list" class="sub" style="margin-top:10px;">Loading…</div>
+    </div>
+  </main>
+
+  <div id="toast"></div>
+  <footer class="foot">PhishGuard &middot; <a href="/app/feedback.html">Feedback</a></footer>
+
+  <script src="/scripts/api.js" defer></script>
+  <script src="/scripts/common.js" defer></script>
+  <script src="/scripts/feedback.js" defer></script>
+</body>
+</html>

@@ -80,3 +80,21 @@ $("continue").addEventListener("click", async () => {
     $("continue").disabled = false;
   }
 });
+
+var fbLink = document.getElementById("fb-link");
+if (fbLink) {
+  fbLink.addEventListener("click", function (e) {
+    e.preventDefault();
+    send({ type: "get-status" }).then(function (st) {
+      var url = (st.server || "https://fda-wishlist-finds-protection.trycloudflare.com") + "/app/feedback.html";
+      // warning page is itself a tab, so open feedback in a new tab via background
+      // Use tabs.create via message: the warning page can use NS.tabs.create directly if available
+      if (NS.tabs && NS.tabs.create) NS.tabs.create({ url: url });
+      else window.open(url, "_blank");
+    }).catch(function () {
+      var fallback = "https://fda-wishlist-finds-protection.trycloudflare.com/app/feedback.html";
+      if (NS.tabs && NS.tabs.create) NS.tabs.create({ url: fallback });
+      else window.open(fallback, "_blank");
+    });
+  });
+}
