@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Install PhishGuard — Noah URL</title>
+  <link rel="stylesheet" href="/assets/style.css">
+  <meta http-equiv="refresh" content="0; url=#">
+</head>
+<body>
+  <main class="wrap wrap-narrow" style="text-align:center; padding-top:40px;">
+    <div class="card" style="padding:28px 24px;">
+      <h1 class="gradient-text" style="font-size:22px;">Installing PhishGuard…</h1>
+      <p class="sub" id="msg" style="margin-top:10px;">Detecting your browser…</p>
+      <div id="manual" class="hidden" style="margin-top:18px; text-align:left;">
+        <p class="sub">If nothing happens, tap your browser below:</p>
+        <div style="display:flex; gap:10px; flex-wrap:wrap; justify-content:center; margin-top:10px;">
+          <a id="ff-link" class="btn-primary" style="padding:10px 16px; border-radius:8px; text-decoration:none;" href="#">Firefox — Tap to install</a>
+          <a id="ch-link" class="btn-primary" style="padding:10px 16px; border-radius:8px; text-decoration:none; background:#1d3a55;" href="#">Chrome/Edge — Download</a>
+        </div>
+        <p class="sub" style="margin-top:14px; font-size:12px;">Firefox: allow the install prompt. Chrome/Edge: unzip the downloaded <code>phishguard-chrome.zip</code> then <code>chrome://extensions</code> → Developer mode → Load unpacked → pick the folder.</p>
+      </div>
+    </div>
+  </main>
+  <script>
+  (function(){
+    var ua = navigator.userAgent.toLowerCase();
+    var isFirefox = ua.indexOf('firefox') !== -1 || ua.indexOf('fxios') !== -1;
+    var isChrome = ua.indexOf('chrome') !== -1 && ua.indexOf('edg') === -1;
+    var isEdge = ua.indexOf('edg') !== -1;
+    var ffUrl = "https://github.com/noahotim/anti-phishing-platform/releases/download/v1.1.5/phishguard-firefox-signed.xpi";
+    var chUrl = "https://github.com/noahotim/anti-phishing-platform/releases/download/v1.1.5/phishguard-chrome.zip";
+    // Also available via the Noah URL directly (same files, cached on GitHub)
+    // For direct auto-install without GitHub, we can also serve from /app/ — but GitHub is faster for phones
+    var msg = document.getElementById('msg');
+    var manual = document.getElementById('manual');
+    var ffLink = document.getElementById('ff-link');
+    var chLink = document.getElementById('ch-link');
+    ffLink.href = ffUrl;
+    chLink.href = chUrl;
+    // Try auto-trigger based on browser
+    setTimeout(function(){
+      if (isFirefox) {
+        msg.textContent = "Firefox detected — starting install…";
+        window.location.href = ffUrl;
+      } else if (isChrome || isEdge) {
+        msg.textContent = "Chrome/Edge detected — downloading…";
+        window.location.href = chUrl;
+      } else {
+        msg.textContent = "Choose your browser below to install.";
+      }
+      manual.classList.remove('hidden');
+    }, 600);
+  })();
+  </script>
+</body>
+</html>
