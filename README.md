@@ -39,10 +39,28 @@ The extension calls two anonymous endpoints:
 
 Blocked sites bounce to an extension-hosted red warning page. Since v1.1.0 a
 **"I understand the risks, continue anyway"** button lets the user proceed to
-a flagged site for 30 minutes.
+a flagged site for 30 minutes (30-min host bypass, DNR rule removed on Chrome).
+
+### Browser support
+
+| Browser | Package | Install | Persists after restart |
+| ------- | ------- | ------- | ---------------------- |
+| **Chrome, Edge, Brave, Opera, Vivaldi** (all Chromium MV3) | `phishguard-chrome.zip` / `extension/` folder | `chrome://extensions` → Developer mode → **Load unpacked** → pick `extension/` (or unzip `phishguard-chrome.zip`); for fleet, publish to Chrome Web Store then force-install via policy | Yes |
+| **Firefox Release** | `phishguard-firefox-signed.xpi` (AMO-signed, v1.1.0) | `about:addons` → gear → **Install Add-on From File** → pick the signed `.xpi` | Yes (signed) |
+| **Firefox Dev Edition / Nightly / ESR** | `phishguard-firefox.xpi` (unsigned) | `about:debugging` → **Load Temporary Add-on** *or* `about:addons` → Install From File with `xpinstall.signatures.required=false` | Temporary via `about:debugging`; permanent via Install From File on Dev/Nightly/ESR |
+| **Safari** | Not packaged (requires Xcode conversion) | Use Firefox/Chrome build or manual URL check at `http://SERVER/app/index.html` | — |
+
+All builds share the same `background.js`/`warning.html` logic (Firefox uses `browser.*`, Chromium uses `chrome.*` via `NS` shim) — instant known-domain blocks + per-navigation precheck, fail-open if the server is unreachable.
 
 See `extension-firefox/README.md` (Firefox) and `extension/README.md`
-(Chrome/Edge) for install details.
+(Chrome/Edge) for detailed steps. Download ready-to-install files from the GitHub Release **v1.1.0**: `phishguard-firefox-signed.xpi` and `phishguard-chrome.zip` at https://github.com/noahotim/anti-phishing-platform/releases/tag/v1.1.0
+
+### Server URL for other PCs
+
+- **Inside your LAN:** `http://192.168.100.43:8000`
+- **Outside your LAN:** public tunnel `https://fda-wishlist-finds-protection.trycloudflare.com` (quick tunnel — host changes on restart; for a stable host create a named Cloudflare Tunnel)
+
+Set the chosen URL in the extension's **Options** → **Save** → **Refresh blocked domains**.
 
 ## Firefox permanent install
 
