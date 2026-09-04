@@ -2,7 +2,7 @@
     "manifest_version":  2,
     "name":  "PhishGuard — automatic URL guard",
     "short_name":  "PhishGuard",
-    "version":  "1.1.4",
+    "version":  "1.1.5",
     "author":  "Noah Otim \u003cotim.no25@gmail.com\u003e",
     "description":  "Automatically checks every site you open against your PhishGuard server and blocks phishing, malware, gambling, adult and social-media pages with a warning interstitial.",
     "permissions":  [

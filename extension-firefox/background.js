@@ -23,7 +23,7 @@ const CACHE_TTL_MS = 10 * 60 * 1000;
 const CACHE_MAX = 3000;
 const RULE_REFRESH_MIN = 30;
 const MAX_DNR_RULES = 4900;
-const BYPASS_MS = 3 * 60 * 1000;
+const BYPASS_MS = 10 * 60 * 1000;
 
 let cfg = { server: DEFAULT_SERVER, blockSuspicious: false, pauseUntil: 0 };
 let threatHosts = [];          // [{host, label, category}]
@@ -349,16 +349,38 @@ function showBlockNotification(host, verdict) {
     if (!NS.notifications || !NS.notifications.create) return;
     var title = "PhishGuard blocked " + host;
     var msg = verdict.blockedLabel || verdict.blockedReason || "This site was blocked";
-    // Truncate for notification limits
     if (msg.length > 120) msg = msg.slice(0, 117) + "...";
-    NS.notifications.create({
+    // 10-minute requireInteraction so it stays visible, with buttons for feedback
+    NS.notifications.create("phishguard-block-" + Date.now(), {
       type: "basic",
       iconUrl: NS.runtime.getURL("icons/icon128.png"),
       title: title,
-      message: msg,
-      priority: 2
+      message: msg + " — Click for feedback (10 min bypass available on warning page)",
+      priority: 2,
+      requireInteraction: true,
+      buttons: [{ title: "View warning" }, { title: "Send feedback" }]
     });
   } catch (e) { /* ignore */ }
+}
+
+// Notification clicks: button 0 = focus warning tab, button 1 = open feedback
+if (NS.notifications && NS.notifications.onButtonClicked) {
+  NS.notifications.onButtonClicked.addListener(function (id, idx) {
+    if (id.indexOf("phishguard-block-") !== 0) return;
+    if (idx === 1) {
+      // Send feedback
+      NS.tabs.create({ url: cfg.server + "/app/feedback.html" });
+    } else {
+      // View warning — focus the active warning tab if still there
+      if (activeTab !== -1) { try { NS.tabs.update(activeTab, { active: true }); } catch (e) {} }
+    }
+    try { NS.notifications.clear(id); } catch (e) {}
+  });
+  NS.notifications.onClicked.addListener(function (id) {
+    if (id.indexOf("phishguard-block-") !== 0) return;
+    NS.tabs.create({ url: cfg.server + "/app/feedback.html" });
+    try { NS.notifications.clear(id); } catch (e) {}
+  });
 }
 
 NS.runtime.onMessage.addListener((msg, sender, sendResponse) => {

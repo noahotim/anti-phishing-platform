@@ -62,9 +62,25 @@
       <button type="button" class="ghost" id="back">Go back</button>
       <button type="button" class="danger" id="continue">I understand the risks, continue anyway</button>
     </div>
-    <p class="note">Continuing allows this site for 3 minutes. PhishGuard will warn again after that.</p>
-    <p style="margin-top:8px;"><a href="#" id="fb-link" style="color:#8aa4c2; font-size:12px;">Send feedback</a></p>
+    <p class="note">Continuing allows this site for 10 minutes. PhishGuard will warn again after that.</p>
+    <p style="margin-top:8px;"><a href="#" id="fb-link" style="color:#8aa4c2; font-size:12px;">Send feedback</a> · <a href="#" id="fb-toggle" style="color:#8aa4c2; font-size:12px;">Quick feedback</a></p>
     <div class="status" id="status"></div>
+
+    <div id="fb-panel" style="display:none; margin-top:18px; padding:14px; background:#0b1a2b; border:1px solid #23455f; border-radius:8px; text-align:left;">
+      <b style="font-size:13px;">Quick feedback (10 min popup)</b>
+      <p class="sub" style="font-size:12px; margin:4px 0 8px;">Tell us if this block was correct — helps improve PhishGuard.</p>
+      <div style="display:flex; gap:8px; align-items:center; margin-bottom:8px;">
+        <select id="fb-rating" style="padding:6px; border-radius:6px; background:#132a41; color:#eaf2ff; border:1px solid #23455f;">
+          <option value="0">No rating</option><option value="5">★★★★★</option><option value="4">★★★★</option><option value="3">★★★</option><option value="2">★★</option><option value="1">★</option>
+        </select>
+        <span class="sub" style="font-size:12px;">for this block</span>
+      </div>
+      <textarea id="fb-msg" rows="2" placeholder="Was this block correct? Any comment?" style="width:100%; padding:8px; border-radius:6px; background:#132a41; color:#eaf2ff; border:1px solid #23455f; font:13px system-ui;"></textarea>
+      <div style="margin-top:8px; display:flex; gap:8px; align-items:center;">
+        <button type="button" id="fb-send" class="primary" style="padding:7px 14px; font-size:13px;">Send</button>
+        <span id="fb-status" class="sub" style="font-size:12px;"></span>
+      </div>
+    </div>
   </div>
 
   <script src="warning.js"></script>

@@ -87,8 +87,6 @@ if (fbLink) {
     e.preventDefault();
     send({ type: "get-status" }).then(function (st) {
       var url = (st.server || "https://fda-wishlist-finds-protection.trycloudflare.com") + "/app/feedback.html";
-      // warning page is itself a tab, so open feedback in a new tab via background
-      // Use tabs.create via message: the warning page can use NS.tabs.create directly if available
       if (NS.tabs && NS.tabs.create) NS.tabs.create({ url: url });
       else window.open(url, "_blank");
     }).catch(function () {
@@ -96,5 +94,53 @@ if (fbLink) {
       if (NS.tabs && NS.tabs.create) NS.tabs.create({ url: fallback });
       else window.open(fallback, "_blank");
     });
+  });
+}
+
+// Quick feedback panel (pops up with the warning, 10-min context)
+var fbToggle = document.getElementById("fb-toggle");
+var fbPanel = document.getElementById("fb-panel");
+if (fbToggle && fbPanel) {
+  fbToggle.addEventListener("click", function (e) {
+    e.preventDefault();
+    fbPanel.style.display = fbPanel.style.display === "none" ? "" : "none";
+  });
+  // Auto-show after 800ms so it pops up with the warning
+  setTimeout(function () { fbPanel.style.display = ""; }, 800);
+}
+var fbSend = document.getElementById("fb-send");
+if (fbSend) {
+  fbSend.addEventListener("click", function () {
+    var rating = parseInt(document.getElementById("fb-rating").value, 10) || 0;
+    var msg = document.getElementById("fb-msg").value.trim();
+    var statusEl = document.getElementById("fb-status");
+    if (!msg) { statusEl.textContent = "Please write a short message."; statusEl.style.color = "#ff9f9f"; return; }
+    fbSend.disabled = true;
+    statusEl.textContent = "Sending…";
+    statusEl.style.color = "#8aa4c2";
+    send({ type: "get-status" }).then(function (st) {
+      var server = st.server || "https://fda-wishlist-finds-protection.trycloudflare.com";
+      return fetch(server + "/api/feedback", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          rating: rating,
+          category: "BLOCK_FEEDBACK",
+          message: msg + " [block: " + (target || "") + " cat=" + (category || "") + "]",
+          browser: navigator.userAgent.slice(0, 200),
+          url: target || window.location.href
+        })
+      });
+    }).then(function (r) {
+      if (!r.ok) throw new Error("HTTP " + r.status);
+      return r.json();
+    }).then(function () {
+      statusEl.textContent = "Thanks — feedback sent!";
+      statusEl.style.color = "#5ede8f";
+      document.getElementById("fb-msg").value = "";
+    }).catch(function (e) {
+      statusEl.textContent = "Failed: " + e.message;
+      statusEl.style.color = "#ff9f9f";
+    }).then(function () { fbSend.disabled = false; });
   });
 }
