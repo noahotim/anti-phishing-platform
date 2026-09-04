@@ -228,6 +228,7 @@ function redirectToWarning(tabId, targetUrl, verdict, host) {
     return NS.tabs.update(tabId, { url: warnUrl });
   }).then(() => {
     recordBlock(host, verdict);
+    showBlockNotification(host, verdict);
   }).catch(() => { /* tab closed mid-flight */ });
 }
 
@@ -341,6 +342,23 @@ function recordBlock(host, verdict) {
       },
     });
   });
+}
+
+function showBlockNotification(host, verdict) {
+  try {
+    if (!NS.notifications || !NS.notifications.create) return;
+    var title = "PhishGuard blocked " + host;
+    var msg = verdict.blockedLabel || verdict.blockedReason || "This site was blocked";
+    // Truncate for notification limits
+    if (msg.length > 120) msg = msg.slice(0, 117) + "...";
+    NS.notifications.create({
+      type: "basic",
+      iconUrl: NS.runtime.getURL("icons/icon128.png"),
+      title: title,
+      message: msg,
+      priority: 2
+    });
+  } catch (e) { /* ignore */ }
 }
 
 NS.runtime.onMessage.addListener((msg, sender, sendResponse) => {
