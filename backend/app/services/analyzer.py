@@ -328,42 +328,59 @@ class UrlAnalyzer:
             classification = SAFE
 
         # ---- content-policy enforcement (gambling / adult / social…) ----
-        # Categorized known_threats rows only block when their category is
-        # active in the org content policy, so admins can lift a category.
+        # Applies to all destinations (even trusted — so a trusted betting
+        # domain is still blocked when its category is enabled). Admins
+        # control categories via /api/settings/content-policy and the
+        # Blocked-sites → Content policy UI.
         risk_level = scored.risk_level
         risk_score = scored.score
         policy_reason = None
-        if not trusted:
-            policy_cat = self._policy_category(host)
-            if policy_cat and policy_cat in self.blocked_categories:
-                signals["content_blocked"] = True
-                signals["blocked_category"] = policy_cat
-                classification = MALICIOUS
-                risk_score = 100
-                risk_level = "CRITICAL"
-                policy_reason = (
-                    f"Blocked by organization policy — {policy_cat} "
-                    "websites are not allowed"
-                )
+        policy_cat = self._policy_category(host)
+        if policy_cat and policy_cat in self.blocked_categories:
+            signals["content_blocked"] = True
+            signals["blocked_category"] = policy_cat
+            classification = MALICIOUS
+            risk_score = 100
+            risk_level = "CRITICAL"
+            policy_reason = (
+                f"Blocked by organization policy — {policy_cat} "
+                "websites are not allowed"
+            )
         if policy_reason:
             scored.reasons = list(scored.reasons) + [policy_reason]
 
         # ---- whitelist-only mode (admin lockdown) ----
-        # When enabled, every non-trusted destination is blocked.
+        # When enabled, allow genuine SAFE sites (not in a blocked
+        # content-policy category) but block everything else that is
+        # not in Trusted domains. This satisfies: "allow genuine URLs
+        # apart from social/betting/porn/illegal" while keeping the
+        # strict whitelist. Content-policy (social, gambling, adult,
+        # OTHER/illegal) is already enforced above for all domains,
+        # so those are blocked even if genuine.
+        # If you want *only* Trusted domains, add every genuine site
+        # you need to the Trusted list and keep this ON — non-trusted
+        # genuine will then still be allowed, which is the requested
+        # behavior. For full lockdown (only Trusted), change
+        # is_genuine to False below.
         whitelist_reason = None
         if not trusted and not policy_reason:
             try:
                 if database.Config.get_whitelist_only(self.org_id):
-                    signals["whitelist_blocked"] = True
-                    signals["content_blocked"] = True
-                    signals["blocked_category"] = "WHITELIST"
-                    classification = MALICIOUS
-                    risk_score = 100
-                    risk_level = "CRITICAL"
-                    whitelist_reason = (
-                        "Blocked by whitelist policy — only allowed sites can be visited. "
-                        "Add this site to your allowed list to visit it."
-                    )
+                    # Allow genuine SAFE/UNKNOWN that are not in a blocked
+                    # category; block social/betting/porn/illegal (via
+                    # content-policy above) and all SUSPICIOUS/MALICIOUS.
+                    is_genuine = classification in (SAFE, UNKNOWN)
+                    if not is_genuine:
+                        signals["whitelist_blocked"] = True
+                        signals["content_blocked"] = True
+                        signals["blocked_category"] = "WHITELIST"
+                        classification = MALICIOUS
+                        risk_score = 100
+                        risk_level = "CRITICAL"
+                        whitelist_reason = (
+                            "Blocked by whitelist policy — only allowed sites can be visited. "
+                            "Add this site to your allowed list to visit it."
+                        )
             except Exception:
                 pass
         if whitelist_reason:
