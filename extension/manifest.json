@@ -3,6 +3,7 @@
   "name": "PhishGuard — automatic URL guard",
   "short_name": "PhishGuard",
   "version": "1.1.0",
+  "author": "Noah Otim <otim.no25@gmail.com>",
   "description": "Automatically checks every site you open against your PhishGuard server and blocks phishing, malware, gambling, adult and social-media pages with a warning interstitial.",
   "minimum_chrome_version": "96",
   "permissions": [

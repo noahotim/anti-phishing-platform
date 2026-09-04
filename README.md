@@ -1,5 +1,7 @@
 # PhishGuard — Anti-phishing Platform
 
+**Author:** Noah Otim ([@noahotim](https://github.com/noahotim) — otim.no25@gmail.com)
+
 A self-hosted phishing intelligence platform with an automatic **browser
 guard**. It scans links and every site you open, blocks phishing, malware,
 gambling, adult and social-media pages behind a warning interstitial, and
