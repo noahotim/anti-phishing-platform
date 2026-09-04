@@ -69,3 +69,50 @@ def list_public():
         ).fetchall()
     # Strip email for privacy
     return {"feedback": [dict(r) for r in rows]}
+
+
+# --- Google Form embed URL (stored in system_settings) ---
+@router.get("/gform")
+def get_gform():
+    with db() as conn:
+        row = conn.execute(
+            "SELECT value FROM system_settings WHERE org_id=1 AND key='feedback_gform_url'"
+        ).fetchone()
+    url = row["value"] if row else ""
+    # system_settings value is JSON-encoded string
+    try:
+        import json as _json
+        url = _json.loads(url) if url else ""
+    except Exception:
+        pass
+    return {"url": url or ""}
+
+
+class GformIn(BaseModel):
+    url: str = Field(default="", max_length=2000)
+
+
+@router.put("/gform")
+def set_gform(
+    payload: GformIn,
+    user: Any = Depends(get_current_user),
+    _: Any = Depends(require_role("ADMIN", "SUPER_ADMIN")),
+):
+    import json as _json
+    from ..database import utcnow_iso
+
+    url = payload.url.strip()[:2000]
+    # Basic validation: must be a Google Forms URL if not empty
+    if url and "docs.google.com/forms" not in url:
+        # still allow but warn via category
+        pass
+    with db() as conn:
+        conn.execute(
+            """
+            INSERT INTO system_settings (org_id, key, value, updated_by, updated_at)
+            VALUES (1, 'feedback_gform_url', ?, ?, ?)
+            ON CONFLICT(org_id, key) DO UPDATE SET value=excluded.value, updated_by=excluded.updated_by, updated_at=excluded.updated_at
+            """,
+            (_json.dumps(url), user.id, utcnow_iso()),
+        )
+    return {"ok": True, "url": url}

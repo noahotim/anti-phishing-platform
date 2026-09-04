@@ -25,8 +25,32 @@
       });
   }
 
+  function loadGform(user) {
+    fetch("/api/feedback/gform")
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        var url = data.url || "";
+        var frame = document.getElementById("gform-frame");
+        var ph = document.getElementById("gform-placeholder");
+        var input = document.getElementById("gform-url");
+        if (url) {
+          frame.src = url;
+          frame.style.display = "";
+          ph.style.display = "none";
+          if (input) input.value = url;
+        }
+        // Show admin box only to admins
+        var isAdmin = user && (user.role === "ADMIN" || user.role === "SUPER_ADMIN");
+        var adminBox = document.getElementById("gform-admin");
+        if (adminBox) {
+          if (isAdmin) adminBox.classList.remove("hidden");
+          else adminBox.classList.add("hidden");
+        }
+      }).catch(function () {});
+  }
+
   document.addEventListener("DOMContentLoaded", function () {
-    UI.boot().then(function () { loadPublic(); });
+    UI.boot().then(function (user) { loadPublic(); loadGform(user); });
 
     var form = document.getElementById("fb-form");
     form.addEventListener("submit", function (e) {
@@ -65,5 +89,37 @@
         msg.textContent = "Failed: " + err.message;
       }).then(function () { btn.disabled = false; });
     });
+
+    var gSave = document.getElementById("gform-save");
+    if (gSave) {
+      gSave.addEventListener("click", function () {
+        var url = document.getElementById("gform-url").value.trim();
+        var m2 = document.getElementById("gform-msg");
+        if (!url) { m2.textContent = "Paste a Google Forms embed URL."; return; }
+        if (url.indexOf("docs.google.com/forms") === -1) { m2.textContent = "Must be a docs.google.com/forms URL."; return; }
+        m2.textContent = "Saving…";
+        gSave.disabled = true;
+        var token = (window.API && API.getToken) ? API.getToken() : (localStorage.getItem("phishguard_token") || "");
+        fetch("/api/feedback/gform", {
+          method: "PUT",
+          headers: { "content-type": "application/json", "Authorization": token ? "Bearer " + token : "" },
+          body: JSON.stringify({ url: url })
+        }).then(function (r) {
+          if (!r.ok) throw new Error("HTTP " + r.status);
+          return r.json();
+        }).then(function () {
+          m2.textContent = "Saved — reloading…";
+          var frame = document.getElementById("gform-frame");
+          var ph = document.getElementById("gform-placeholder");
+          frame.src = url;
+          frame.style.display = "";
+          ph.style.display = "none";
+          UI.toast("Google Form embedded in the guard.", "ok");
+        }).catch(function (e) {
+          m2.textContent = "Failed: " + e.message;
+          UI.toast("Could not save: " + e.message, "err");
+        }).then(function () { gSave.disabled = false; });
+      });
+    }
   });
 })();

@@ -50,8 +50,8 @@
       </form>
 
       <hr style="margin:22px 0; border:none; border-top:1px solid #23455f;">
-      <h2 style="font-size:16px;">Prefer Google Forms?</h2>
-      <p class="sub">Create a Google Form in 1 minute: go to <a href="https://docs.google.com/forms" target="_blank" rel="noopener">forms.google.com</a> → Blank form → add these questions, then share the link with your users. Suggested questions:</p>
+      <h2 style="font-size:16px;">Google Form (embedded in the guard)</h2>
+      <p class="sub">Create at <a href="https://docs.google.com/forms" target="_blank" rel="noopener">forms.google.com</a> → Blank form → add the questions below, then <b>Send → &lt;&gt; Embed</b> → copy the <code>.../viewform?embedded=true</code> URL and paste it in the admin box below. It will appear here inside PhishGuard for everyone (inside and outside your network).</p>
       <ul class="reasons" style="font-size:13px;">
         <li>How useful is PhishGuard? (Linear scale 1–5)</li>
         <li>What do you like most? (Paragraph)</li>
@@ -59,7 +59,19 @@
         <li>Which browser do you use? (Multiple choice: Chrome / Firefox / Edge / Other)</li>
         <li>May we contact you? (Short answer: email, optional)</li>
       </ul>
-      <p class="sub">Paste your Google Form link here to show it inside PhishGuard: <code id="gform-hint">https://docs.google.com/forms/d/e/.../viewform?embedded=true</code></p>
+      <div id="gform-admin" class="hidden" style="margin-top:14px; padding:12px; background:#0b1a2b; border:1px solid #23455f; border-radius:8px;">
+        <label style="font-size:13px;">Admin: Google Form embed URL<br>
+          <input type="url" id="gform-url" placeholder="https://docs.google.com/forms/d/e/.../viewform?embedded=true" style="width:100%; margin-top:6px;">
+        </label>
+        <div class="row" style="margin-top:8px;">
+          <button type="button" id="gform-save" class="btn-primary btn-sm">Save</button>
+          <span class="small muted" id="gform-msg"></span>
+        </div>
+      </div>
+      <div style="margin-top:16px;">
+        <iframe id="gform-frame" style="width:100%; height:620px; border:1px solid #23455f; border-radius:8px; display:none;" loading="lazy"></iframe>
+        <p class="sub" id="gform-placeholder">No Google Form configured yet.</p>
+      </div>
     </div>
 
     <div class="card" style="margin-top:18px; padding:16px 20px;">
