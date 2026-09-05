@@ -86,11 +86,11 @@ if (fbLink) {
   fbLink.addEventListener("click", function (e) {
     e.preventDefault();
     send({ type: "get-status" }).then(function (st) {
-      var url = (st.server || "https://fda-wishlist-finds-protection.trycloudflare.com") + "/app/feedback.html";
+      var url = (st.server || "https://dressing-duck-dose-controllers.trycloudflare.com") + "/app/feedback.html";
       if (NS.tabs && NS.tabs.create) NS.tabs.create({ url: url });
       else window.open(url, "_blank");
     }).catch(function () {
-      var fallback = "https://fda-wishlist-finds-protection.trycloudflare.com/app/feedback.html";
+      var fallback = "https://dressing-duck-dose-controllers.trycloudflare.com/app/feedback.html";
       if (NS.tabs && NS.tabs.create) NS.tabs.create({ url: fallback });
       else window.open(fallback, "_blank");
     });
@@ -119,7 +119,7 @@ if (fbSend) {
     statusEl.textContent = "Sending…";
     statusEl.style.color = "#8aa4c2";
     send({ type: "get-status" }).then(function (st) {
-      var server = st.server || "https://fda-wishlist-finds-protection.trycloudflare.com";
+      var server = st.server || "https://dressing-duck-dose-controllers.trycloudflare.com";
       return fetch(server + "/api/feedback", {
         method: "POST",
         headers: { "content-type": "application/json" },

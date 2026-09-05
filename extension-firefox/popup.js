@@ -87,10 +87,10 @@ $("feedback").addEventListener("click", async (e) => {
   e.preventDefault();
   try {
     const st = await send({ type: "get-status" });
-    const url = (st.server || "https://fda-wishlist-finds-protection.trycloudflare.com") + "/app/feedback.html";
+    const url = (st.server || "https://dressing-duck-dose-controllers.trycloudflare.com") + "/app/feedback.html";
     NS.tabs.create({ url });
   } catch (_) {
-    NS.tabs.create({ url: "https://fda-wishlist-finds-protection.trycloudflare.com/app/feedback.html" });
+    NS.tabs.create({ url: "https://dressing-duck-dose-controllers.trycloudflare.com/app/feedback.html" });
   }
 });
 
