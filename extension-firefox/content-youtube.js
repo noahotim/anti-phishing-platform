@@ -1,30 +1,38 @@
 // PhishGuard — YouTube ad blocker for PCs (Chrome/Edge/Brave/Opera + Firefox)
-// Hides pre-roll/mid-roll ad UI and auto-clicks Skip when it appears.
+// Fixes 1.1.7 regression that hid videos: never hide .ad-showing/.ytp-ad-module.
+// Only hides external slot ads; for in-player ads we click Skip and fast-forward.
 (function () {
   "use strict";
-  const SEL_AD = ".ad-showing, .ytp-ad-module, #player-ads, .video-ads, .ytd-ad-slot-renderer, .ytd-display-ad-renderer";
-  const SEL_SKIP = ".ytp-ad-skip-button, .ytp-ad-skip-button-modern, .ytp-skip-ad-button";
+  var SEL_SLOTS = ".ytd-ad-slot-renderer, .ytd-display-ad-renderer, #player-ads, .video-ads";
+  var SEL_SKIP = ".ytp-ad-skip-button, .ytp-ad-skip-button-modern, .ytp-skip-ad-button";
 
-  function skipIfNeeded() {
-    const btn = document.querySelector(SEL_SKIP);
-    if (btn && btn.offsetParent !== null) {
-      try { btn.click(); } catch (e) {}
-      // Also try to jump video to end to skip unskippable
-      const v = document.querySelector("video.html5-main-video");
-      if (v && v.duration && isFinite(v.duration)) {
-        try { v.currentTime = v.duration; } catch (e) {}
+  function tick() {
+    // Hide only feed/sidebar ad slots - never the player itself
+    var slots = document.querySelectorAll(SEL_SLOTS);
+    for (var i = 0; i < slots.length; i++) slots[i].style.display = "none";
+
+    var isAd = document.documentElement.classList.contains("ad-showing") ||
+               !!document.querySelector(".ad-showing");
+    var btn = document.querySelector(SEL_SKIP);
+    var btnVisible = btn && btn.offsetParent !== null;
+
+    if (isAd || btnVisible) {
+      if (btnVisible) { try { btn.click(); } catch (e) {} }
+      var v = document.querySelector("video.html5-main-video");
+      if (v && isAd) {
+        try {
+          v.muted = true;
+          if (v.duration && isFinite(v.duration) && v.duration - v.currentTime > 0.5) {
+            v.currentTime = v.duration;
+          }
+          if (v.paused) { var p = v.play(); if (p && p.catch) p.catch(function(){}); }
+        } catch (e) {}
       }
     }
-    // Hide ad containers
-    document.querySelectorAll(SEL_AD).forEach(function (el) {
-      el.style.display = "none";
-    });
   }
 
-  // Run immediately and on mutations (YouTube is SPA)
-  skipIfNeeded();
-  const obs = new MutationObserver(function () { skipIfNeeded(); });
-  obs.observe(document.documentElement, { childList: true, subtree: true, attributes: true });
-  // Also poll as fallback (YouTube sometimes re-adds ads)
-  setInterval(skipIfNeeded, 500);
+  tick();
+  var obs = new MutationObserver(function () { tick(); });
+  try { obs.observe(document.documentElement, { childList: true, subtree: true, attributes: true }); } catch (e) {}
+  setInterval(tick, 700);
 })();
