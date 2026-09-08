@@ -19,7 +19,7 @@ router = APIRouter(prefix="/api/guard", tags=["guard"])
 
 @router.get("/rules")
 def guard_rules(org_id: int = Query(default=1, ge=1)):
-    active = set(database.Config.get_content_policy(org_id))
+    active = set(database.Config.get_content_policy(org_id)) | {"GAMBLING"}
     rows = database.fetchall(
         """
         SELECT domain, category

@@ -174,7 +174,7 @@ class UrlAnalyzer:
             self.providers = build_provider_registry(malware)
             self.blocked_categories = set(
                 database.Config.get_content_policy(org_id)
-            )
+            ) | {"GAMBLING"}
 
     # ---- internal helpers -------------------------------------------------
     def _exact_trust_lookup(self, ascii_host: str, registered: str) -> Optional[dict]:
@@ -336,7 +336,7 @@ class UrlAnalyzer:
         risk_score = scored.score
         policy_reason = None
         policy_cat = self._policy_category(host)
-        if policy_cat and policy_cat in self.blocked_categories:
+        if policy_cat and (policy_cat in self.blocked_categories or policy_cat == "GAMBLING"):
             signals["content_blocked"] = True
             signals["blocked_category"] = policy_cat
             classification = MALICIOUS

@@ -315,7 +315,7 @@ class Config:
 
     @staticmethod
     def get_content_policy(org_id: int) -> list[str]:
-        """Categories that are actively blocked for the org."""
+        """Categories that are actively blocked for the org. GAMBLING is always enforced."""
         defaults = list(Config.DEFAULT_BLOCKED_CATEGORIES)
         with db() as conn:
             row = conn.execute(
@@ -326,13 +326,19 @@ class Config:
             return defaults
         try:
             values = json.loads(row["value"])
-            return [c for c in values if isinstance(c, str)] if isinstance(values, list) else defaults
+            cats = [c for c in values if isinstance(c, str)] if isinstance(values, list) else defaults
+            if "GAMBLING" not in cats:
+                cats = cats + ["GAMBLING"]
+            return cats
         except (ValueError, TypeError, json.JSONDecodeError):
             return defaults
 
     @staticmethod
     def set_content_policy(org_id: int, categories: list[str], actor_id: Any) -> str:
-        """Persist blocked categories; returns the previous stored JSON."""
+        """Persist blocked categories; returns the previous stored JSON. GAMBLING is forced on."""
+        cats = [c for c in categories if isinstance(c, str)]
+        if "GAMBLING" not in cats:
+            cats = cats + ["GAMBLING"]
         with db() as conn:
             row = conn.execute(
                 "SELECT value FROM system_settings WHERE org_id=? AND key=?",
@@ -347,7 +353,7 @@ class Config:
                     value=excluded.value, updated_by=excluded.updated_by,
                     updated_at=excluded.updated_at
                 """,
-                (org_id, json.dumps(categories), actor_id, utcnow_iso()),
+                (org_id, json.dumps(cats), actor_id, utcnow_iso()),
             )
             return prev
 
