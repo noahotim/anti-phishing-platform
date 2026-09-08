@@ -17,7 +17,7 @@
 // `chrome`. Pick whichever exists.
 const NS = (typeof browser !== "undefined" && browser) ? browser : chrome;
 
-const DEFAULT_SERVER = "https://dressing-duck-dose-controllers.trycloudflare.com";
+const DEFAULT_SERVER = "https://anyway-vids-michel-energy.trycloudflare.com";
 const WARNING_PAGE = "warning.html";
 const CACHE_TTL_MS = 10 * 60 * 1000;
 const CACHE_MAX = 3000;
