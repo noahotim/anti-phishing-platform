@@ -1,4 +1,4 @@
-// Sets a flag so https://anyway-vids-michel-energy.trycloudflare.com/app/install.html can detect that PhishGuard is already installed
+// Sets a flag so https://mirror-spice-aquarium-mapping.trycloudflare.com/app/install.html can detect that PhishGuard is already installed
 try {
   window.phishGuardInstalled = true;
   document.documentElement.setAttribute('data-phishguard-installed', 'true');
