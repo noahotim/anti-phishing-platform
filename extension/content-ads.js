@@ -1,7 +1,10 @@
 // BOTIMPHISHGUARD — Universal ad blocker for all sites (not only YouTube)
 // Hides common ad containers, sponsored posts, and tracking iframes. Reports to live feed.
+// Excludes WhatsApp and other messaging apps to avoid hiding messages.
 (function(){
   "use strict";
+  // Never run on WhatsApp — its messages were being hidden as "ads"
+  if (location.hostname.includes("whatsapp.com") || location.hostname.includes("web.whatsapp")) return;
   const AD_SELECTORS = [
     "[id*='google_ads']","[class*='google-ad']","[id^='ad-']","[class^='ad-']",
     ".adsbygoogle",".ad-container",".ad-wrapper",".advertisement",".sponsored",
