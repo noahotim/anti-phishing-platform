@@ -23,7 +23,7 @@ const CACHE_TTL_MS = 10 * 60 * 1000;
 const CACHE_MAX = 3000;
 const RULE_REFRESH_MIN = 30;
 const MAX_DNR_RULES = 4900;
-const BYPASS_MS = 10 * 60 * 1000;
+const BYPASS_MS = 60 * 1000;
 
 let cfg = { server: DEFAULT_SERVER, blockSuspicious: false, pauseUntil: 0 };
 let threatHosts = [];          // [{host, label, category}]
@@ -261,12 +261,15 @@ function isBypassed(host) {
   host = String(host || "").toLowerCase();
   if (!host) return false;
   const t = bypassHosts.get(host);
-  if (t && t > Date.now()) return true;
-  if (t) {
+  if (!t) return false;
+  if (t <= Date.now()) {
     bypassHosts.delete(host);
     removeDnrFor(host);
+    return false;
   }
-  return false;
+  // Single-use bypass: allow this one navigation, then always block again next time
+  bypassHosts.delete(host);
+  return true;
 }
 
 function purgeBypasses() {
