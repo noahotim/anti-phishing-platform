@@ -1,0 +1,14 @@
+services:
+  - type: web
+    name: phishguard
+    env: docker
+    dockerfilePath: ./Dockerfile
+    plan: free
+    healthCheckPath: /api/health
+    envVars:
+      - key: PORT
+        value: 10000
+      - key: SEED_ON_STARTUP
+        value: true
+      - key: APP_DEBUG
+        value: false
