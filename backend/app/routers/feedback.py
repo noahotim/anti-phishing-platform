@@ -1,6 +1,10 @@
-"""Feedback — public submit, admin list."""
+"""Feedback — public submit, admin list. Live + WhatsApp 0782719875."""
 from __future__ import annotations
 
+import os
+import logging
+import urllib.parse
+import urllib.request
 from typing import Any
 
 from fastapi import APIRouter, Depends, Request
@@ -8,6 +12,10 @@ from pydantic import BaseModel, Field
 
 from ..database import db, utcnow_iso
 from ..security import get_current_user, require_role
+
+log = logging.getLogger("feedback")
+WHATSAPP_NUMBER = os.environ.get("WHATSAPP_NUMBER", "256782719875")  # 0782719875 -> 256...
+WHATSAPP_APIKEY = os.environ.get("CALLMEBOT_APIKEY", "")  # set in Render env to enable
 
 router = APIRouter(prefix="/api/feedback", tags=["feedback"])
 
@@ -44,6 +52,24 @@ def submit_feedback(payload: FeedbackIn, request: Request):
             ),
         )
         fid = int(cur.lastrowid)
+    # Live + WhatsApp — fire and forget, never block the response
+    try:
+        msg = f"New BOTIMPHISHGUARD feedback #{fid}: {payload.name or 'Anonymous'} ({payload.rating}★) [{payload.category}] {payload.message[:300]} — {payload.email or ''} {payload.url[:100]}"
+        # WhatsApp via CallMeBot if configured, otherwise just log + wa.me link
+        if WHATSAPP_APIKEY:
+            text = urllib.parse.quote(msg)
+            url = f"https://api.callmebot.com/whatsapp.php?phone={WHATSAPP_NUMBER}&text={text}&apikey={WHATSAPP_APIKEY}"
+            try:
+                urllib.request.urlopen(url, timeout=8).read()
+                log.info("WhatsApp sent for feedback %s", fid)
+            except Exception as e:
+                log.warning("WhatsApp send failed for %s: %s", fid, e)
+        else:
+            # No API key — log the wa.me link so admin can click
+            wa_link = f"https://wa.me/{WHATSAPP_NUMBER}?text=" + urllib.parse.quote(msg)
+            log.info("Feedback %s — WhatsApp link (set CALLMEBOT_APIKEY to auto-send): %s", fid, wa_link)
+    except Exception as e:
+        log.warning("feedback whatsapp hook failed: %s", e)
     return {"ok": True, "id": fid}
 
 

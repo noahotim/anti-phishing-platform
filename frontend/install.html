@@ -3,20 +3,20 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Install PhishGuard — Noah URL</title>
+  <title>Install BOTIMPHISHGUARD — Noah URL</title>
   <link rel="stylesheet" href="/assets/style.css">
 </head>
 <body>
   <main class="wrap wrap-narrow" style="text-align:center; padding-top:40px;">
     <div class="card" style="padding:28px 24px;">
-      <h1 class="gradient-text" style="font-size:22px;">Install PhishGuard</h1>
+      <h1 class="gradient-text" style="font-size:22px;">Install BOTIMPHISHGUARD</h1>
       <p class="sub" id="msg" style="margin-top:10px;">Tap your browser below — instant, works on every phone.</p>
       <div id="manual" style="margin-top:18px; text-align:left;">
         <div style="display:flex; gap:10px; flex-wrap:wrap; justify-content:center; margin-top:10px;">
-          <a id="ff-link" class="btn-primary" style="padding:12px 18px; border-radius:8px; text-decoration:none; font-size:16px;" href="./phishguard-firefox-signed.xpi">Firefox — Tap to install</a>
-          <a id="ch-link" class="btn-primary" style="padding:12px 18px; border-radius:8px; text-decoration:none; background:#1d3a55; font-size:16px;" href="./phishguard-chrome.zip">Chrome / Edge / Samsung / Opera — Tap to download</a>
+          <a id="ff-link" class="btn-primary" style="padding:12px 18px; border-radius:8px; text-decoration:none; font-size:16px;" href="./BOTIMPHISHGUARD-firefox-signed.xpi">Firefox — Tap to install</a>
+          <a id="ch-link" class="btn-primary" style="padding:12px 18px; border-radius:8px; text-decoration:none; background:#1d3a55; font-size:16px;" href="./BOTIMPHISHGUARD-chrome.zip">Chrome / Edge / Samsung / Opera — Tap to download</a>
         </div>
-        <p class="sub" style="margin-top:14px; font-size:12px;">Firefox: allow the install prompt. Chrome/Edge/Samsung/Opera: unzip the downloaded <code>phishguard-chrome.zip</code> then <code>chrome://extensions</code> → Developer mode → Load unpacked → pick the folder.<br>All phones: uses Noah URL <code>https://phishguard-8vri.onrender.com</code> automatically.</p>
+        <p class="sub" style="margin-top:14px; font-size:12px;">Firefox: allow the install prompt. Chrome/Edge/Samsung/Opera: unzip the downloaded <code>BOTIMPHISHGUARD-chrome.zip</code> then <code>chrome://extensions</code> → Developer mode → Load unpacked → pick the folder.<br>All phones: uses Noah URL <code>https://phishguard-8vri.onrender.com</code> automatically.</p>
       </div>
     </div>
   </main>
@@ -27,11 +27,11 @@
     function checkInstalled() {
       var isInstalled = window.phishGuardInstalled || document.documentElement.getAttribute('data-phishguard-installed') === 'true';
       if (isInstalled) {
-        document.getElementById('msg').innerHTML = '<span style="color:#5ede8f;">✓ PhishGuard is already installed in this browser</span> — you are protected.';
+        document.getElementById('msg').innerHTML = '<span style="color:#5ede8f;">✓ BOTIMPHISHGUARD is already installed in this browser</span> — you are protected.';
         document.getElementById('manual').innerHTML = '<p class="sub">You are all set. If you need to update, tap below to reinstall the latest version.</p>' +
           '<div style="display:flex; gap:10px; flex-wrap:wrap; justify-content:center; margin-top:10px;">' +
-          '<a class="btn-primary" style="padding:12px 18px; border-radius:8px; text-decoration:none;" href="./phishguard-firefox-signed.xpi">Reinstall Firefox</a>' +
-          '<a class="btn-primary" style="padding:12px 18px; border-radius:8px; text-decoration:none; background:#1d3a55;" href="./phishguard-chrome.zip">Reinstall Chrome/Edge</a></div>';
+          '<a class="btn-primary" style="padding:12px 18px; border-radius:8px; text-decoration:none;" href="./BOTIMPHISHGUARD-firefox-signed.xpi">Reinstall Firefox</a>' +
+          '<a class="btn-primary" style="padding:12px 18px; border-radius:8px; text-decoration:none; background:#1d3a55;" href="./BOTIMPHISHGUARD-chrome.zip">Reinstall Chrome/Edge</a></div>';
         return true;
       }
       return false;
@@ -47,7 +47,7 @@
     if (isFirefox && !checkInstalled()) {
       setTimeout(function(){
         if (!checkInstalled()) {
-          try { window.location.href = "./phishguard-firefox-signed.xpi"; } catch(e){}
+          try { window.location.href = "./BOTIMPHISHGUARD-firefox-signed.xpi"; } catch(e){}
         }
       }, 400);
     }

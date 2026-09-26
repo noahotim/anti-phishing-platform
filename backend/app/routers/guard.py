@@ -9,6 +9,9 @@ per-navigation precheck instead.
 """
 from __future__ import annotations
 
+import json
+import pathlib
+
 from fastapi import APIRouter, Query
 
 from .. import database
@@ -47,4 +50,27 @@ def guard_rules(org_id: int = Query(default=1, ge=1)):
         "active_categories": sorted(active),
         "rules": rules,
         "generated_at": database.utcnow_iso(),
+    }
+
+
+@router.get("/version")
+def guard_version():
+    """Latest guard version for auto-update checks. Already installed guards poll this."""
+    # read from extension manifest if available
+    manifest_path = pathlib.Path(__file__).resolve().parent.parent.parent.parent / "extension" / "manifest.json"
+    ver = "1.1.16"
+    name = "BOTIMPHISHGUARD"
+    try:
+        if manifest_path.exists():
+            data = json.loads(manifest_path.read_text(encoding="utf-8"))
+            ver = data.get("version") or ver
+            name = data.get("name") or name
+    except Exception:
+        pass
+    return {
+        "version": ver,
+        "name": name,
+        "update_url": "https://phishguard-8vri.onrender.com/app/install.html",
+        "firefox_url": "https://github.com/noahotim/anti-phishing-platform/releases/latest/download/phishguard-firefox-signed.xpi",
+        "chrome_url": "https://github.com/noahotim/anti-phishing-platform/releases/latest/download/phishguard-chrome.zip",
     }
