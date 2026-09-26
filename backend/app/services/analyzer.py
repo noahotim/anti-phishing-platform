@@ -194,11 +194,17 @@ class UrlAnalyzer:
                 return row
         return None
 
+    # Betting keywords - always GAMBLING even if not in known_threats table
+    _BETTING_KEYWORDS = ("bet", "casino", "poker", "slot", "gamble", "lotto", "wager", "pawa", "sportpesa", "1xbet", "betway", "betpawa")
+
     def _policy_category(self, host: str) -> Optional[str]:
         h = (host or "").lower().rstrip(".")
         for bad, cat in self.policy_domains.items():
             if h == bad or (len(bad) > 3 and h.endswith("." + bad)):
                 return cat
+        # Heuristic: any host containing betting keywords is GAMBLING - covers betpawa etc. even without DB entry
+        if any(kw in h for kw in self._BETTING_KEYWORDS):
+            return "GAMBLING"
         return None
 
     # ---- public entry -----------------------------------------------------
