@@ -342,7 +342,8 @@ class UrlAnalyzer:
         risk_score = scored.score
         policy_reason = None
         policy_cat = self._policy_category(host)
-        if policy_cat and (policy_cat in self.blocked_categories or policy_cat == "GAMBLING"):
+        # Trusted sites override content policy — user-added whitelist always wins
+        if policy_cat and (policy_cat in self.blocked_categories or policy_cat == "GAMBLING") and not trusted:
             signals["content_blocked"] = True
             signals["blocked_category"] = policy_cat
             classification = MALICIOUS

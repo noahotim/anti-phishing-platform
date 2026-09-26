@@ -81,6 +81,22 @@ $("continue").addEventListener("click", async () => {
   }
 });
 
+var wl = document.getElementById("whitelist");
+if (wl) wl.addEventListener("click", function(){
+  var host = "";
+  try { host = new URL(target).hostname; } catch(e){ host = target; }
+  send({ type: "get-status" }).then(function(st){
+    var server = (st && st.server) || "https://phishguard-8vri.onrender.com";
+    var url = server + "/app/whitelist.html?domain=" + encodeURIComponent(host);
+    if (NS.tabs && NS.tabs.create) NS.tabs.create({ url: url });
+    else window.open(url, "_blank");
+  }).catch(function(){
+    var url = "https://phishguard-8vri.onrender.com/app/whitelist.html?domain=" + encodeURIComponent(host);
+    if (NS.tabs && NS.tabs.create) NS.tabs.create({ url: url });
+    else window.open(url, "_blank");
+  });
+});
+
 var fbLink = document.getElementById("fb-link");
 if (fbLink) {
   fbLink.addEventListener("click", function (e) {

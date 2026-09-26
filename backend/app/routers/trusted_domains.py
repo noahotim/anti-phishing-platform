@@ -11,7 +11,7 @@ from pydantic import BaseModel, Field
 
 from .. import database
 from ..audit import audit
-from ..security import CurrentUser, client_ip, require_admin
+from ..security import CurrentUser, client_ip, get_current_user, require_admin
 from ..services import normalization
 
 router = APIRouter(prefix="/api/trusted-domains", tags=["trusted-domains"])
@@ -88,6 +88,44 @@ def create_domain(
         ),
     )
     audit(action="CREATE_TRUSTED_DOMAIN", entity="trusted_domain", entity_id=new_id,
+          org_id=user.org_id, actor_id=user.id, actor_email=user.email,
+          ip=client_ip(request), new=body.model_dump())
+    return _row_to_dict(
+        database.fetchone("SELECT * FROM trusted_domains WHERE id=?", (new_id,))
+    )
+
+
+@router.post("/self-add", status_code=201)
+def self_add_domain(
+    body: TrustedDomainIn,
+    request: Request,
+    user: CurrentUser = Depends(get_current_user),
+):
+    """Any logged-in user can whitelist a site they trust. Goes to same table as admin."""
+    norm = normalization.to_ascii(body.domain)
+    if not norm or "." not in norm:
+        raise HTTPException(status_code=422, detail="invalid domain")
+    exists = database.fetchone(
+        "SELECT id FROM trusted_domains WHERE org_id=? AND normalized_domain=?",
+        (user.org_id, norm),
+    )
+    if exists:
+        raise HTTPException(status_code=409, detail="domain already trusted")
+    new_id = database.execute(
+        """
+        INSERT INTO trusted_domains
+            (org_id, domain, normalized_domain, category, is_critical,
+             allowed_subdomains, notes, added_by, created_at, updated_at)
+        VALUES (?,?,?,?,?,?,?,?,?,?)
+        """,
+        (
+            user.org_id, body.domain.strip(), norm, body.category,
+            1 if body.is_critical else 0, body.allowed_subdomains.strip(),
+            (body.notes.strip() or f"Whitelisted by {user.email}")[:2000], user.id, database.utcnow_iso(),
+            database.utcnow_iso(),
+        ),
+    )
+    audit(action="SELF_ADD_TRUSTED_DOMAIN", entity="trusted_domain", entity_id=new_id,
           org_id=user.org_id, actor_id=user.id, actor_email=user.email,
           ip=client_ip(request), new=body.model_dump())
     return _row_to_dict(

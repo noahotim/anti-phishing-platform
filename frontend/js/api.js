@@ -172,5 +172,6 @@
     updateWhitelistOnly: function (enabled) {
       return request("PUT", "/api/settings/whitelist-only", { enabled: enabled });
     },
+    selfAddTrusted: function (body) { return request("POST", "/api/trusted-domains/self-add", body); },
   };
 })();
