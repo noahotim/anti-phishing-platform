@@ -1,10 +1,10 @@
 {
   "manifest_version": 2,
-  "name": "PhishGuard — automatic URL guard",
-  "short_name": "PhishGuard",
-  "version": "1.1.16",
+  "name": "BOTIMPHISHGUARD — automatic URL guard",
+  "short_name": "BOTIMPHISHGUARD",
+  "version": "1.1.18",
   "author": "Noah Otim <otim.no25@gmail.com>",
-  "description": "Automatically checks every site you open against your PhishGuard server and blocks phishing, malware, gambling, adult and social-media pages with a warning interstitial.",
+  "description": "Automatically checks every site you open against your BOTIMPHISHGUARD server and blocks phishing, malware, gambling, adult and social-media pages with a warning interstitial.",
   "permissions": [
     "webNavigation",
     "storage",
@@ -18,7 +18,7 @@
     "persistent": false
   },
   "browser_action": {
-    "default_title": "PhishGuard",
+    "default_title": "BOTIMPHISHGUARD",
     "default_popup": "popup.html",
     "default_icon": {
       "16": "icons/icon16.png",
@@ -38,8 +38,13 @@
     },
     {
       "matches": ["*://*.youtube.com/*"],
-      "js": ["content-youtube.js"],
+      "js": ["content-youtube.js", "content-youtube-download.js"],
       "run_at": "document_start"
+    },
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content-ads.js"],
+      "run_at": "document_idle"
     }
   ],
   "options_ui": {

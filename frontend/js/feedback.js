@@ -50,7 +50,8 @@
   }
 
   document.addEventListener("DOMContentLoaded", function () {
-    UI.boot().then(function (user) { loadPublic(); loadGform(user); });
+    UI.boot().then(function (user) { loadPublic(); loadGform(user); setInterval(loadPublic, 5000); });
+    setInterval(loadPublic, 5000);
 
     var form = document.getElementById("fb-form");
     form.addEventListener("submit", function (e) {

@@ -27,18 +27,18 @@ HIGH = "HIGH"
 CRITICAL = "CRITICAL"
 
 _WEIGHTS = {
-    "untrusted_destination": 8,       # baseline for not being approved
+    "untrusted_destination": 5,       # baseline for not being approved — lower to avoid genuine flagged as suspicious
     "confusable_exact_match": 55,     # registered domain is a visual twin
     "edit_dist_1": 46,
     "edit_dist_2": 30,
     "edit_dist_3": 20,
     "edit_dist_4": 12,
-    "tld_changed": 8,
-    "tld_confusable": 12,
-    "suspicious_tld": 15,
+    "tld_changed": 5,
+    "tld_confusable": 8,
+    "suspicious_tld": 8,
     "punycode": 12,
     "mixed_script": 14,
-    "keyword": 9,
+    "keyword": 5,
     "brand_embedded": 48,
     "brand_prefix": 26,
     "suffix_embedded": 24,
@@ -47,9 +47,9 @@ _WEIGHTS = {
     "non_http_scheme": 5,
     "ip_host": 26,
     "ti_malicious": 55,
-    "redirect_param": 8,
-    "brand_in_path": 10,
-    "weak_tld": 6,
+    "redirect_param": 5,
+    "brand_in_path": 8,
+    "weak_tld": 4,
 }
 
 

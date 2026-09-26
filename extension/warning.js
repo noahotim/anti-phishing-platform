@@ -1,4 +1,4 @@
-/* PhishGuard interstitial (extension-hosted) — lets the user continue anyway. */
+/* BOTIMPHISHGUARD interstitial (extension-hosted) — lets the user continue anyway. */
 "use strict";
 
 // Firefox exposes the promise-based API under `browser`; Chrome (MV3) uses
@@ -34,7 +34,7 @@ $("warn-icon").className = "warn-icon " + (classification === "SUSPICIOUS" ? "wa
 $("title").textContent = category ? "Access blocked by policy" : "Warning: this link is flagged as unsafe";
 $("sub").textContent = category
   ? (label ? label + " websites are blocked by your organization's settings." : "This site is blocked by policy.")
-  : "PhishGuard flagged this link as " + classification.toLowerCase() + ".";
+  : "BOTIMPHISHGUARD flagged this link as " + classification.toLowerCase() + ".";
 $("url").textContent = target;
 $("score").textContent = score || "100";
 

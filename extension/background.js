@@ -1,4 +1,4 @@
-/* PhishGuard browser guard — background service worker.
+/* BOTIMPHISHGUARD browser guard — background service worker.
  *
  * Two-layer blocking:
  *  1. declarativeNetRequest redirect rules for known blocked domains
@@ -37,7 +37,7 @@ NS.runtime.onStartup.addListener(() => { refreshRules(); scheduleRefresh(); });
 NS.alarms.onAlarm.addListener((a) => { if (a.name === "refreshRules") refreshRules(); });
 NS.storage.onChanged.addListener((changes, area) => {
   if (area !== "sync" && area !== "local") return;
-  loadCfg().then(() => refreshRules());
+loadCfg().then(() => { refreshRules(); checkForUpdate(); });
 });
 
 loadCfg().then(() => refreshRules());
@@ -67,6 +67,43 @@ function isPaused() {
 
 function scheduleRefresh() {
   NS.alarms.create("refreshRules", { periodInMinutes: RULE_REFRESH_MIN });
+  NS.alarms.create("checkUpdate", { periodInMinutes: 60 });
+}
+
+async function checkForUpdate() {
+  try {
+    const curVer = NS.runtime.getManifest().version;
+    const res = await fetchJSON(cfg.server + "/api/guard/version");
+    const latest = (res.version || "").trim();
+    if (latest && latest !== curVer) {
+      console.log("[BOTIMPHISHGUARD] update available: " + curVer + " -> " + latest);
+      try {
+        if (NS.notifications && NS.notifications.create) {
+          NS.notifications.create("botim-update-" + Date.now(), {
+            type: "basic",
+            iconUrl: NS.runtime.getURL("icons/icon128.png"),
+            title: "BOTIMPHISHGUARD update available: " + latest,
+            message: "Click to install " + latest + " (you have " + curVer + ") — " + (res.update_url || cfg.server + "/app/install.html"),
+            priority: 2,
+            requireInteraction: true,
+            buttons: [{ title: "Update now" }]
+          });
+        }
+      } catch(e){}
+      // also try browser's built-in update check for sideloaded
+      try { if (NS.runtime.requestUpdateCheck) NS.runtime.requestUpdateCheck(function(s){ console.log("update check", s); }); } catch(e){}
+    }
+  } catch(e) { /* ignore */ }
+}
+NS.alarms.onAlarm.addListener((a) => { if (a.name === "checkUpdate") checkForUpdate(); });
+if (NS.notifications && NS.notifications.onButtonClicked) {
+  // handle update button is already handled above, but also handle here for update notification
+  NS.notifications.onButtonClicked.addListener(function(id, idx){
+    if (id.indexOf("botim-update-")===0) {
+      NS.tabs.create({ url: cfg.server + "/app/install.html" });
+      try{ NS.notifications.clear(id); }catch(e){}
+    }
+  });
 }
 
 // --------------------------------------------------------------------------
@@ -80,9 +117,9 @@ async function refreshRules() {
       .filter((r) => r && r.domain && typeof r.domain === "string")
       .map((r) => ({ host: r.domain.toLowerCase(), label: r.label || "Malware", category: r.category || "" }));
     await installDnrRules(rules);
-    console.log("[PhishGuard] loaded " + threatHosts.length + " blocked domains");
+    console.log("[BOTIMPHISHGUARD] loaded " + threatHosts.length + " blocked domains");
   } catch (e) {
-    console.warn("[PhishGuard] rule refresh failed:", e.message);
+    console.warn("[BOTIMPHISHGUARD] rule refresh failed:", e.message);
   }
 }
 
@@ -213,7 +250,7 @@ function checkUrl(url, tabId, host) {
       if (should) redirectToWarning(tabId, url, verdict, host);
     })
     .catch((e) => {
-      if (e && e.name !== "AbortError") console.warn("[PhishGuard] precheck failed:", e.message);
+      if (e && e.name !== "AbortError") console.warn("[BOTIMPHISHGUARD] precheck failed:", e.message);
     })
     .finally(() => inFlight.delete(url));
   inFlight.set(url, p);
@@ -361,11 +398,11 @@ function reportLive(host, url, category, label, type) {
 function showBlockNotification(host, verdict) {
   try {
     if (!NS.notifications || !NS.notifications.create) return;
-    var title = "PhishGuard blocked " + host;
+    var title = "BOTIMPHISHGUARD blocked " + host;
     var msg = verdict.blockedLabel || verdict.blockedReason || "This site was blocked";
     if (msg.length > 120) msg = msg.slice(0, 117) + "...";
     // 10-minute requireInteraction so it stays visible, with buttons for feedback
-    NS.notifications.create("phishguard-block-" + Date.now(), {
+    NS.notifications.create("BOTIMPHISHGUARD-block-" + Date.now(), {
       type: "basic",
       iconUrl: NS.runtime.getURL("icons/icon128.png"),
       title: title,
@@ -380,7 +417,7 @@ function showBlockNotification(host, verdict) {
 // Notification clicks: button 0 = focus warning tab, button 1 = open feedback
 if (NS.notifications && NS.notifications.onButtonClicked) {
   NS.notifications.onButtonClicked.addListener(function (id, idx) {
-    if (id.indexOf("phishguard-block-") !== 0) return;
+    if (id.indexOf("BOTIMPHISHGUARD-block-") !== 0) return;
     if (idx === 1) {
       // Send feedback
       NS.tabs.create({ url: cfg.server + "/app/feedback.html" });
@@ -391,7 +428,7 @@ if (NS.notifications && NS.notifications.onButtonClicked) {
     try { NS.notifications.clear(id); } catch (e) {}
   });
   NS.notifications.onClicked.addListener(function (id) {
-    if (id.indexOf("phishguard-block-") !== 0) return;
+    if (id.indexOf("BOTIMPHISHGUARD-block-") !== 0) return;
     NS.tabs.create({ url: cfg.server + "/app/feedback.html" });
     try { NS.notifications.clear(id); } catch (e) {}
   });
@@ -437,14 +474,14 @@ NS.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     reportLive(host, url, "ADS", "Advertisement", "ad");
     try {
       if (NS.notifications && NS.notifications.create) {
-        NS.notifications.create("phishguard-ad-" + Date.now(), {
+        NS.notifications.create("BOTIMPHISHGUARD-ad-" + Date.now(), {
           type: "basic",
           iconUrl: NS.runtime.getURL("icons/icon128.png"),
-          title: "PhishGuard blocked an ad on " + host,
+          title: "BOTIMPHISHGUARD blocked an ad on " + host,
           message: "An ad has been blocked — video continues playing",
           priority: 1,
         });
-        setTimeout(function(){ try{ NS.notifications.clear("phishguard-ad-" + Date.now()); }catch(e){} }, 4000);
+        setTimeout(function(){ try{ NS.notifications.clear("BOTIMPHISHGUARD-ad-" + Date.now()); }catch(e){} }, 4000);
       }
     } catch(e){}
     // also record locally

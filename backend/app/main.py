@@ -33,6 +33,7 @@ from .routers import (
     threat_intel,
     trusted_domains,
     users,
+    youtube,
 )
 from .seed import seed
 from .services.ti_sync import sync_live_feed_once
@@ -160,6 +161,7 @@ app.include_router(threat_intel.router)
 app.include_router(blocked_sites.router)
 app.include_router(guard.router)
 app.include_router(feedback.router)
+app.include_router(youtube.router)
 
 
 @app.get("/api/health")

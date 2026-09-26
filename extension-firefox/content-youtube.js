@@ -1,4 +1,4 @@
-// PhishGuard — YouTube ad blocker for PCs (Chrome/Edge/Brave/Opera + Firefox)
+// BOTIMPHISHGUARD — YouTube ad blocker for PCs (Chrome/Edge/Brave/Opera + Firefox)
 // Blocks ads but video keeps playing instantly — never hide video element.
 (function () {
   "use strict";

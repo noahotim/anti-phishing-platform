@@ -98,7 +98,7 @@
             var msg = (r.type==="ad" ? "Ad blocked on " : "Site blocked: ") + r.host + " (" + (r.category||r.label||"") + ")";
             UI.toast(msg, r.type==="ad" ? "ok" : "err");
             // also desktop notification if permitted
-            try { if (Notification && Notification.permission==="granted") new Notification("PhishGuard: " + msg); } catch(e){}
+            try { if (Notification && Notification.permission==="granted") new Notification("BOTIMPHISHGUARD: " + msg); } catch(e){}
           });
         }
         lastLiveIds = new Set(rows.map(function(r){ return r.id; }));

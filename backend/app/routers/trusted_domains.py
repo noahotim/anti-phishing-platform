@@ -4,14 +4,14 @@ from __future__ import annotations
 import csv
 import io
 import json
-from typing import Optional
+from typing import Any, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, UploadFile, File, Form
 from pydantic import BaseModel, Field
 
 from .. import database
 from ..audit import audit
-from ..security import CurrentUser, client_ip, get_current_user, require_admin
+from ..security import CurrentUser, client_ip, get_current_user, get_optional_user, require_admin
 from ..services import normalization
 
 router = APIRouter(prefix="/api/trusted-domains", tags=["trusted-domains"])
@@ -99,15 +99,18 @@ def create_domain(
 def self_add_domain(
     body: TrustedDomainIn,
     request: Request,
-    user: CurrentUser = Depends(get_current_user),
+    user: Any = Depends(get_optional_user),
 ):
-    """Any logged-in user can whitelist a site they trust. Goes to same table as admin."""
+    """Any user (even anonymous) can whitelist a site they trust — instantly allows it. No login required."""
+    org_id = user.org_id if user else 1
+    actor_id = user.id if user else None
+    actor_email = user.email if user else "anonymous"
     norm = normalization.to_ascii(body.domain)
     if not norm or "." not in norm:
         raise HTTPException(status_code=422, detail="invalid domain")
     exists = database.fetchone(
         "SELECT id FROM trusted_domains WHERE org_id=? AND normalized_domain=?",
-        (user.org_id, norm),
+        (org_id, norm),
     )
     if exists:
         raise HTTPException(status_code=409, detail="domain already trusted")
@@ -119,14 +122,14 @@ def self_add_domain(
         VALUES (?,?,?,?,?,?,?,?,?,?)
         """,
         (
-            user.org_id, body.domain.strip(), norm, body.category,
+            org_id, body.domain.strip(), norm, body.category,
             1 if body.is_critical else 0, body.allowed_subdomains.strip(),
-            (body.notes.strip() or f"Whitelisted by {user.email}")[:2000], user.id, database.utcnow_iso(),
+            (body.notes.strip() or f"Whitelisted by {actor_email}")[:2000], actor_id, database.utcnow_iso(),
             database.utcnow_iso(),
         ),
     )
     audit(action="SELF_ADD_TRUSTED_DOMAIN", entity="trusted_domain", entity_id=new_id,
-          org_id=user.org_id, actor_id=user.id, actor_email=user.email,
+          org_id=org_id, actor_id=actor_id, actor_email=actor_email,
           ip=client_ip(request), new=body.model_dump())
     return _row_to_dict(
         database.fetchone("SELECT * FROM trusted_domains WHERE id=?", (new_id,))
