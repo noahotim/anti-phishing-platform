@@ -16,6 +16,10 @@
         <h3 id="title" style="margin:10px 0 6px;font-size:16px;"></h3>
         <p class="sub" id="duration" style="font-size:12px;"></p>
       </div>
+      <div id="quality" style="margin-top:12px;display:none;gap:12px;flex-wrap:wrap;">
+        <label style="font-size:12px;">Video quality: <select id="v-quality" style="padding:6px;border-radius:4px;background:#132a41;color:#eaf2ff;border:1px solid #23455f;"><option value="best">Best (original)</option><option value="1080">1080p</option><option value="720">720p</option><option value="480">480p</option></select></label>
+        <label style="font-size:12px;">Audio quality: <select id="a-quality" style="padding:6px;border-radius:4px;background:#132a41;color:#eaf2ff;border:1px solid #23455f;"><option value="best">Best (320kbps)</option><option value="192">192kbps</option><option value="128">128kbps</option></select></label>
+      </div>
       <div id="actions" style="margin-top:16px;display:none;gap:10px;flex-wrap:wrap;">
         <button id="dl-video" class="btn-primary" style="padding:10px 18px;">⬇ Download Video (mp4)</button>
         <button id="dl-audio" class="btn-primary" style="padding:10px 18px;background:#1d3a55;">♫ Download Audio (mp3)</button>
@@ -32,47 +36,52 @@
   (function(){
     var params = new URLSearchParams(window.location.search);
     var url = params.get("url") || params.get("vid") && ("https://www.youtube.com/watch?v="+params.get("vid")) || "";
+    var quality = params.get("quality") || "best";
     var format = params.get("format") || "mp4";
     var input = document.getElementById("input-url");
     var info = document.getElementById("info");
     var status = document.getElementById("status");
     if (url) input.value = url;
+    if (quality) {
+      var vq=document.getElementById("v-quality"); if(vq) vq.value=quality;
+      var aq=document.getElementById("a-quality"); if(aq) aq.value=quality;
+    }
     function load(u){
       if (!u) { info.textContent = "Paste a YouTube URL above."; return; }
       info.textContent = "Fetching info for " + u + " …";
       document.getElementById("preview").style.display="none";
       document.getElementById("actions").style.display="none";
+      document.getElementById("quality").style.display="none";
       fetch("/api/youtube/info?url=" + encodeURIComponent(u)).then(function(r){
         if (!r.ok) throw new Error("HTTP "+r.status);
         return r.json();
       }).then(function(j){
-        info.textContent = "Ready — choose download format";
+        info.textContent = "Ready — choose quality and download to your device";
         document.getElementById("title").textContent = j.title || u;
         document.getElementById("duration").textContent = (j.duration ? "Duration: " + j.duration + "s" : "") + (j.uploader ? " • " + j.uploader : "");
         if (j.thumbnail) { document.getElementById("thumb").src = j.thumbnail; document.getElementById("preview").style.display=""; }
         else document.getElementById("preview").style.display="";
+        document.getElementById("quality").style.display="flex";
         document.getElementById("actions").style.display="flex";
         document.getElementById("dl-video").onclick = function(){
-          status.textContent = "Starting video download…";
-          window.location.href = "/api/youtube/download?url=" + encodeURIComponent(u) + "&format=mp4";
-          setTimeout(function(){ status.textContent = "If download didn't start, try again or check pop-up blocker."; }, 2000);
+          var q=document.getElementById("v-quality").value;
+          status.textContent = "Starting video download ("+q+") — saving to your device…";
+          window.location.href = "/api/youtube/download?url=" + encodeURIComponent(u) + "&format=mp4&quality=" + encodeURIComponent(q);
+          setTimeout(function(){ status.textContent = "If download didn't start, check pop-up blocker or try again."; }, 2000);
         };
         document.getElementById("dl-audio").onclick = function(){
-          status.textContent = "Starting audio download…";
-          window.location.href = "/api/youtube/download?url=" + encodeURIComponent(u) + "&format=mp3";
+          var q=document.getElementById("a-quality").value;
+          status.textContent = "Starting audio download ("+q+") — saving to your device…";
+          window.location.href = "/api/youtube/download?url=" + encodeURIComponent(u) + "&format=mp3&quality=" + encodeURIComponent(q);
           setTimeout(function(){ status.textContent = "If download didn't start, try again."; }, 2000);
         };
-        // auto-trigger if format specified and user came from button
-        if (format === "mp3") {
-          // don't auto, let user click
-        }
       }).catch(function(e){
         info.textContent = "Could not fetch info: " + e.message;
         status.textContent = "Try opening directly: https://www.y2mate.com/youtube/" + (u.split("v=")[1]||"");
-        // fallback: still show buttons that go to external service
+        document.getElementById("quality").style.display="flex";
         document.getElementById("actions").style.display="flex";
-        document.getElementById("dl-video").onclick = function(){ window.open("https://www.ssyoutube.com/watch?v=" + (new URL(u).searchParams.get("v")||""), "_blank"); };
-        document.getElementById("dl-audio").onclick = function(){ window.open("https://www.ssyoutube.com/watch?v=" + (new URL(u).searchParams.get("v")||"") , "_blank"); };
+        document.getElementById("dl-video").onclick = function(){ var q=document.getElementById("v-quality").value; window.open("https://www.ssyoutube.com/watch?v=" + (new URL(u).searchParams.get("v")||"") + "&quality="+q, "_blank"); };
+        document.getElementById("dl-audio").onclick = function(){ var q=document.getElementById("a-quality").value; window.open("https://www.ssyoutube.com/watch?v=" + (new URL(u).searchParams.get("v")||"") , "_blank"); };
       });
     }
     if (url) load(url);

@@ -58,7 +58,7 @@ def youtube_info(url: str = Query(..., min_length=8, max_length=2048)):
 
 
 @router.get("/download")
-def youtube_download(url: str = Query(..., min_length=8), format: str = Query(default="mp4", max_length=10)):
+def youtube_download(url: str = Query(..., min_length=8), format: str = Query(default="mp4", max_length=10), quality: str = Query(default="best", max_length=10)):
     if "youtube.com" not in url and "youtu.be" not in url:
         raise HTTPException(status_code=422, detail="not a youtube url")
     fmt = format.lower().strip()
@@ -69,18 +69,29 @@ def youtube_download(url: str = Query(..., min_length=8), format: str = Query(de
     try:
         import yt_dlp  # type: ignore
         tmpdir = tempfile.mkdtemp(prefix="yt_")
-        # yt-dlp options: best mp4 or best audio for mp3
+        q = quality.lower().strip()
         if fmt == "mp3":
+            # audio quality: best 320, 192, 128
+            qual = "320" if q == "best" else ("192" if q in ("192","high") else "128")
             ydl_opts = {
                 "format": "bestaudio/best",
                 "outtmpl": os.path.join(tmpdir, "%(title)s.%(ext)s"),
-                "postprocessors": [{"key": "FFmpegExtractAudio", "preferredcodec": "mp3", "preferredquality": "192"}],
+                "postprocessors": [{"key": "FFmpegExtractAudio", "preferredcodec": "mp3", "preferredquality": qual}],
                 "quiet": True,
                 "noplaylist": True,
             }
         else:
+            # video quality: best, 1080, 720, 480
+            if q == "1080":
+                fmt_str = "bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/best[height<=1080][ext=mp4]/best"
+            elif q == "720":
+                fmt_str = "bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]/best[height<=720][ext=mp4]/best"
+            elif q == "480":
+                fmt_str = "bestvideo[height<=480][ext=mp4]+bestaudio[ext=m4a]/best[height<=480][ext=mp4]/best"
+            else:
+                fmt_str = "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best"
             ydl_opts = {
-                "format": "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best",
+                "format": fmt_str,
                 "outtmpl": os.path.join(tmpdir, "%(title)s.%(ext)s"),
                 "merge_output_format": "mp4",
                 "quiet": True,

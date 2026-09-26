@@ -8,42 +8,63 @@
   function getVideoId(){
     try { return new URL(location.href).searchParams.get("v") || ""; } catch(e){ return ""; }
   }
+  function findContainer(){
+    return document.querySelector("ytd-watch-metadata") ||
+           document.querySelector("#above-the-fold") ||
+           document.querySelector("#primary-inner") ||
+           document.querySelector("#primary #title") ||
+           document.querySelector("#title h1") ||
+           document.querySelector("ytd-video-primary-info-renderer") ||
+           document.querySelector("#info") ||
+           document.querySelector("#player");
+  }
   function createBar(){
     if (document.getElementById("botim-download-bar")) return;
-    var container = document.querySelector("#above-the-fold #title") || document.querySelector("#container #title") || document.querySelector("ytd-watch-metadata");
+    var container = findContainer();
     if (!container) return;
     var bar = document.createElement("div");
     bar.id = "botim-download-bar";
-    bar.style.cssText = "display:flex;gap:8px;margin:10px 0;flex-wrap:wrap;align-items:center;";
-    var vBtn = document.createElement("button");
-    vBtn.textContent = "⬇ Download Video";
-    vBtn.style.cssText = BTN_STYLE;
-    vBtn.title = "Download this YouTube video via BOTIMPHISHGUARD";
-    vBtn.addEventListener("click", function(){
-      var vid = getVideoId();
-      var url = location.href;
-      var dl = "https://phishguard-8vri.onrender.com/app/youtube-download.html?url=" + encodeURIComponent(url) + "&format=mp4&vid=" + encodeURIComponent(vid);
-      window.open(dl, "_blank");
-    });
-    var aBtn = document.createElement("button");
-    aBtn.textContent = "♫ Download Audio";
-    aBtn.style.cssText = AUDIO_STYLE;
-    aBtn.title = "Download audio (mp3) from this video";
-    aBtn.addEventListener("click", function(){
-      var vid = getVideoId();
-      var url = location.href;
-      var dl = "https://phishguard-8vri.onrender.com/app/youtube-download.html?url=" + encodeURIComponent(url) + "&format=mp3&vid=" + encodeURIComponent(vid);
-      window.open(dl, "_blank");
-    });
+    bar.style.cssText = "display:flex;gap:8px;margin:12px 0;padding:10px 12px;background:#0b1a2b;border:1px solid #23455f;border-radius:8px;flex-wrap:wrap;align-items:center;z-index:9999;";
     var label = document.createElement("span");
     label.textContent = "BOTIMPHISHGUARD:";
-    label.style.cssText = "font:700 12px system-ui;color:#8aa4c2;margin-right:4px;";
+    label.style.cssText = "font:700 12px system-ui;color:#5ede8f;margin-right:4px;";
     bar.appendChild(label);
-    bar.appendChild(vBtn);
-    bar.appendChild(aBtn);
-    // insert after title
-    if (container.parentNode) container.parentNode.insertBefore(bar, container.nextSibling);
-    else container.appendChild(bar);
+    // Video download with quality selector
+    var vBtn = document.createElement("button");
+    vBtn.innerHTML = "⬇ Download Video <small style='opacity:0.7;'>▼</small>";
+    vBtn.style.cssText = BTN_STYLE;
+    vBtn.title = "Download this YouTube video at best quality to your device";
+    var vMenu = document.createElement("div");
+    vMenu.style.cssText = "display:none;position:absolute;background:#132a41;border:1px solid #23455f;border-radius:6px;padding:6px;z-index:10000;flex-direction:column;gap:4px;margin-top:4px;";
+    [["Best (original)","best"],["1080p","1080"],["720p","720"],["480p","480"]].forEach(function(q){
+      var o=document.createElement("button"); o.textContent=q[0]; o.style.cssText="background:#1a3a5c;color:#eaf2ff;border:0;border-radius:4px;padding:6px 10px;text-align:left;cursor:pointer;font:12px system-ui;";
+      o.addEventListener("click", function(e){ e.stopPropagation(); vMenu.style.display="none"; var url=location.href; var dl="https://phishguard-8vri.onrender.com/app/youtube-download.html?url="+encodeURIComponent(url)+"&format=mp4&quality="+q[1]; window.open(dl,"_blank"); });
+      vMenu.appendChild(o);
+    });
+    var vWrap=document.createElement("div"); vWrap.style.cssText="position:relative;display:inline-block;"; vWrap.appendChild(vBtn); vWrap.appendChild(vMenu);
+    vBtn.addEventListener("click", function(e){ e.stopPropagation(); vMenu.style.display = vMenu.style.display==="none"?"flex":"none"; aMenu.style.display="none"; });
+    bar.appendChild(vWrap);
+    // Audio download with quality selector
+    var aBtn = document.createElement("button");
+    aBtn.innerHTML = "♫ Download Audio <small style='opacity:0.7;'>▼</small>";
+    aBtn.style.cssText = AUDIO_STYLE;
+    aBtn.title = "Download audio (mp3) at best quality";
+    var aMenu=document.createElement("div");
+    aMenu.style.cssText="display:none;position:absolute;background:#132a41;border:1px solid #23455f;border-radius:6px;padding:6px;z-index:10000;flex-direction:column;gap:4px;margin-top:4px;";
+    [["Best (320kbps)","best"],["High (192kbps)","192"],["Medium (128kbps)","128"]].forEach(function(q){
+      var o=document.createElement("button"); o.textContent=q[0]; o.style.cssText="background:#1a3a5c;color:#eaf2ff;border:0;border-radius:4px;padding:6px 10px;text-align:left;cursor:pointer;font:12px system-ui;";
+      o.addEventListener("click", function(e){ e.stopPropagation(); aMenu.style.display="none"; var url=location.href; var dl="https://phishguard-8vri.onrender.com/app/youtube-download.html?url="+encodeURIComponent(url)+"&format=mp3&quality="+q[1]; window.open(dl,"_blank"); });
+      aMenu.appendChild(o);
+    });
+    var aWrap=document.createElement("div"); aWrap.style.cssText="position:relative;display:inline-block;"; aWrap.appendChild(aBtn); aWrap.appendChild(aMenu);
+    aBtn.addEventListener("click", function(e){ e.stopPropagation(); aMenu.style.display = aMenu.style.display==="none"?"flex":"none"; vMenu.style.display="none"; });
+    bar.appendChild(aWrap);
+    document.addEventListener("click", function(){ vMenu.style.display="none"; aMenu.style.display="none"; });
+    // Insert below video info
+    var anchor = document.querySelector("ytd-watch-metadata") || document.querySelector("#above-the-fold") || container;
+    if (anchor && anchor.parentNode) anchor.parentNode.insertBefore(bar, anchor.nextSibling);
+    else if (container.parentNode) container.parentNode.insertBefore(bar, container.nextSibling);
+    else document.body.appendChild(bar);
     injected = true;
   }
   // YouTube is SPA — observe for navigation
