@@ -38,7 +38,17 @@
     vMenu.style.cssText = "display:none;position:absolute;background:#132a41;border:1px solid #23455f;border-radius:6px;padding:6px;z-index:10000;flex-direction:column;gap:4px;margin-top:4px;";
     [["Best (original)","best"],["1080p","1080"],["720p","720"],["480p","480"]].forEach(function(q){
       var o=document.createElement("button"); o.textContent=q[0]; o.style.cssText="background:#1a3a5c;color:#eaf2ff;border:0;border-radius:4px;padding:6px 10px;text-align:left;cursor:pointer;font:12px system-ui;";
-      o.addEventListener("click", function(e){ e.stopPropagation(); vMenu.style.display="none"; var url=location.href; var dl="https://phishguard-8vri.onrender.com/app/youtube-download.html?url="+encodeURIComponent(url)+"&format=mp4&quality="+q[1]; window.open(dl,"_blank"); });
+      o.addEventListener("click", function(e){
+        e.stopPropagation(); vMenu.style.display="none";
+        var url=location.href;
+        // Instant direct download to local storage at chosen quality — no standalone page
+        var dl="https://phishguard-8vri.onrender.com/api/youtube/download?url="+encodeURIComponent(url)+"&format=mp4&quality="+q[1];
+        // Trigger download in hidden iframe to stay on page
+        var a=document.createElement("a"); a.href=dl; a.download=""; a.style.display="none"; document.body.appendChild(a); a.click();
+        setTimeout(function(){ try{ document.body.removeChild(a); }catch(e){} }, 2000);
+        // Fallback: also open in new tab if popup blocked
+        setTimeout(function(){ window.open(dl, "_blank"); }, 300);
+      });
       vMenu.appendChild(o);
     });
     var vWrap=document.createElement("div"); vWrap.style.cssText="position:relative;display:inline-block;"; vWrap.appendChild(vBtn); vWrap.appendChild(vMenu);
@@ -53,7 +63,14 @@
     aMenu.style.cssText="display:none;position:absolute;background:#132a41;border:1px solid #23455f;border-radius:6px;padding:6px;z-index:10000;flex-direction:column;gap:4px;margin-top:4px;";
     [["Best (320kbps)","best"],["High (192kbps)","192"],["Medium (128kbps)","128"]].forEach(function(q){
       var o=document.createElement("button"); o.textContent=q[0]; o.style.cssText="background:#1a3a5c;color:#eaf2ff;border:0;border-radius:4px;padding:6px 10px;text-align:left;cursor:pointer;font:12px system-ui;";
-      o.addEventListener("click", function(e){ e.stopPropagation(); aMenu.style.display="none"; var url=location.href; var dl="https://phishguard-8vri.onrender.com/app/youtube-download.html?url="+encodeURIComponent(url)+"&format=mp3&quality="+q[1]; window.open(dl,"_blank"); });
+      o.addEventListener("click", function(e){
+        e.stopPropagation(); aMenu.style.display="none";
+        var url=location.href;
+        var dl="https://phishguard-8vri.onrender.com/api/youtube/download?url="+encodeURIComponent(url)+"&format=mp3&quality="+q[1];
+        var a=document.createElement("a"); a.href=dl; a.download=""; a.style.display="none"; document.body.appendChild(a); a.click();
+        setTimeout(function(){ try{ document.body.removeChild(a); }catch(e){} }, 2000);
+        setTimeout(function(){ window.open(dl, "_blank"); }, 300);
+      });
       aMenu.appendChild(o);
     });
     var aWrap=document.createElement("div"); aWrap.style.cssText="position:relative;display:inline-block;"; aWrap.appendChild(aBtn); aWrap.appendChild(aMenu);
