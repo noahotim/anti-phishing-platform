@@ -87,10 +87,10 @@ $("feedback").addEventListener("click", async (e) => {
   e.preventDefault();
   try {
     const st = await send({ type: "get-status" });
-    const url = (st.server || "https://mirror-spice-aquarium-mapping.trycloudflare.com") + "/app/feedback.html";
+    const url = (st.server || "https://phishguard-8vri.onrender.com") + "/app/feedback.html";
     NS.tabs.create({ url });
   } catch (_) {
-    NS.tabs.create({ url: "https://mirror-spice-aquarium-mapping.trycloudflare.com/app/feedback.html" });
+    NS.tabs.create({ url: "https://phishguard-8vri.onrender.com/app/feedback.html" });
   }
 });
 

@@ -58,7 +58,7 @@ See `extension-firefox/README.md` (Firefox) and `extension/README.md`
 ### Server URL for other PCs
 
 - **Inside your LAN:** `http://192.168.100.43:8000`
-- **Outside your LAN (Noah URL):** `https://mirror-spice-aquarium-mapping.trycloudflare.com` (public Cloudflare Tunnel — quick tunnel, host changes on restart; for a stable host create a named tunnel)
+- **Outside your LAN (Noah URL):** `https://phishguard-8vri.onrender.com` (public Cloudflare Tunnel — quick tunnel, host changes on restart; for a stable host create a named tunnel)
 
 Noah URL is the default in v1.1.1+ (outside PCs work automatically after install). Set manually in the extension's **Options** → **Save** → **Refresh blocked domains** if needed.
 

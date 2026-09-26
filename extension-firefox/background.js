@@ -17,7 +17,7 @@
 // `chrome`. Pick whichever exists.
 const NS = (typeof browser !== "undefined" && browser) ? browser : chrome;
 
-const DEFAULT_SERVER = "https://mirror-spice-aquarium-mapping.trycloudflare.com";
+const DEFAULT_SERVER = "https://phishguard-8vri.onrender.com";
 const WARNING_PAGE = "warning.html";
 const CACHE_TTL_MS = 10 * 60 * 1000;
 const CACHE_MAX = 3000;
