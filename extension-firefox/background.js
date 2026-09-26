@@ -229,6 +229,7 @@ function redirectToWarning(tabId, targetUrl, verdict, host) {
   }).then(() => {
     recordBlock(host, verdict);
     showBlockNotification(host, verdict);
+    reportLive(host, targetUrl, verdict.blockedCategory || "", verdict.blockedLabel || "", "site");
   }).catch(() => { /* tab closed mid-flight */ });
 }
 
@@ -347,6 +348,16 @@ function recordBlock(host, verdict) {
   });
 }
 
+function reportLive(host, url, category, label, type) {
+  try {
+    fetch(cfg.server + "/api/dashboard/live-report", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ host: host || "", url: url || "", category: category || "", label: label || "", type: type || "site" }),
+    }).catch(() => {});
+  } catch (e) {}
+}
+
 function showBlockNotification(host, verdict) {
   try {
     if (!NS.notifications || !NS.notifications.create) return;
@@ -418,6 +429,27 @@ NS.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       : Promise.reject(new Error("no tab context"));
     go.then(() => sendResponse({ ok: true }))
       .catch((e) => sendResponse({ ok: false, error: e.message }));
+    return true;
+  }
+  if (msg && msg.type === "ad-blocked") {
+    var host = (msg.host || "").toLowerCase();
+    var url = msg.url || "";
+    reportLive(host, url, "ADS", "Advertisement", "ad");
+    try {
+      if (NS.notifications && NS.notifications.create) {
+        NS.notifications.create("phishguard-ad-" + Date.now(), {
+          type: "basic",
+          iconUrl: NS.runtime.getURL("icons/icon128.png"),
+          title: "PhishGuard blocked an ad on " + host,
+          message: "An ad has been blocked — video continues playing",
+          priority: 1,
+        });
+        setTimeout(function(){ try{ NS.notifications.clear("phishguard-ad-" + Date.now()); }catch(e){} }, 4000);
+      }
+    } catch(e){}
+    // also record locally
+    recordBlock(host, { blockedLabel: "Ad blocked", blockedCategory: "ADS", classification: "AD" });
+    sendResponse({ ok: true });
     return true;
   }
   sendResponse({ ok: false, error: "unknown message type" });

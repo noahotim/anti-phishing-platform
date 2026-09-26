@@ -11,6 +11,7 @@
     (document.head||document.documentElement).appendChild(st);
   } catch(e){}
 
+  var wasAd = false;
   function tick() {
     var slots = document.querySelectorAll(SEL_SLOTS);
     for (var i = 0; i < slots.length; i++) slots[i].style.display = "none";
@@ -23,6 +24,11 @@
                !!document.querySelector(".ytp-ad-player-overlay, .ytp-ad-image-overlay");
     var btn = document.querySelector(SEL_SKIP);
     var btnVisible = btn && btn.offsetParent !== null;
+
+    if ((isAd || btnVisible) && !wasAd) {
+      try { var NS2 = (typeof browser !== "undefined" ? browser : chrome); NS2.runtime.sendMessage({type:"ad-blocked", host: location.hostname, url: location.href}); } catch(e){}
+    }
+    wasAd = !!(isAd || btnVisible);
 
     if (btnVisible) { try { btn.click(); } catch (e) {} }
 

@@ -175,6 +175,21 @@ CREATE TABLE IF NOT EXISTS feedback (
 );
 CREATE INDEX IF NOT EXISTS idx_feedback_created ON feedback(created_at);
 CREATE INDEX IF NOT EXISTS idx_feedback_rating  ON feedback(rating);
+
+CREATE TABLE IF NOT EXISTS live_block_events (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    org_id     INTEGER NOT NULL REFERENCES organizations(id),
+    host       TEXT NOT NULL,
+    url        TEXT NOT NULL,
+    category   TEXT NOT NULL DEFAULT '',
+    label      TEXT NOT NULL DEFAULT '',
+    type       TEXT NOT NULL DEFAULT 'site' CHECK (type IN ('site','ad')),
+    user_agent TEXT NOT NULL DEFAULT '',
+    ip         TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_live_block_org_time ON live_block_events(org_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_live_block_type ON live_block_events(type);
 """
 
 

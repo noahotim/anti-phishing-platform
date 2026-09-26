@@ -5,11 +5,12 @@ import json
 from datetime import datetime, timezone
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel
 
 from .. import database
-from ..security import CurrentUser, require_analyst
+from ..security import CurrentUser, get_current_user, get_optional_user, require_analyst
+from ..security import client_ip
 
 router = APIRouter(prefix="/api/dashboard", tags=["dashboard"])
 
@@ -144,3 +145,72 @@ def statistics(
         },
         "trend": trend,
     }
+
+
+@router.get("/live-blocks")
+def live_blocks(
+    request: Request,
+    user: CurrentUser = Depends(get_current_user),
+    limit: int = Query(default=50, ge=1, le=200),
+    since: Optional[str] = Query(default=None),
+):
+    """Live feed of blocked sites and ads for super admin and analysts. Poll every 3s."""
+    org_id = user.org_id
+    # live_block_events is the real-time guard feed (site+ad), url_scans is fallback
+    rows = database.fetchall(
+        """
+        SELECT id, host, url, category, label, type, user_agent, ip, created_at
+        FROM live_block_events
+        WHERE org_id=? ORDER BY id DESC LIMIT ?
+        """,
+        (org_id, limit),
+    )
+    events = [dict(r) for r in rows]
+    # also include recent url_scans blocked as fallback if no live events yet
+    if not events:
+        scans = database.fetchall(
+            """
+            SELECT id, hostname as host, url, '' as category, classification as label, 'site' as type, '' as user_agent, '' as ip, created_at
+            FROM url_scans WHERE org_id=? AND classification='MALICIOUS' ORDER BY id DESC LIMIT ?
+            """,
+            (org_id, limit),
+        )
+        events = [dict(r) for r in scans]
+    return {"events": events, "count": len(events)}
+
+
+class BlockReport(BaseModel):
+    host: str
+    url: str
+    category: str = ""
+    label: str = ""
+    type: str = "site"  # site or ad
+
+
+@router.post("/live-report")
+def live_report(
+    body: BlockReport,
+    request: Request,
+    user: Optional[CurrentUser] = Depends(get_optional_user),
+):
+    org_id = user.org_id if user else 1
+    from ..database import utcnow_iso
+    # throttle: don't spam same host+type within 5s
+    last = database.fetchone(
+        "SELECT created_at FROM live_block_events WHERE org_id=? AND host=? AND type=? ORDER BY id DESC LIMIT 1",
+        (org_id, body.host, body.type),
+    )
+    database.execute(
+        """
+        INSERT INTO live_block_events (org_id, host, url, category, label, type, user_agent, ip, created_at)
+        VALUES (?,?,?,?,?,?,?,?,?)
+        """,
+        (
+            org_id, body.host[:253], body.url[:4000], body.category[:64], body.label[:253],
+            body.type if body.type in ("site","ad") else "site",
+            (request.headers.get("user-agent") or "")[:300],
+            client_ip(request)[:64],
+            utcnow_iso(),
+        ),
+    )
+    return {"ok": True, "host": body.host}

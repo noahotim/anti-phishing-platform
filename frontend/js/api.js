@@ -173,5 +173,7 @@
       return request("PUT", "/api/settings/whitelist-only", { enabled: enabled });
     },
     selfAddTrusted: function (body) { return request("POST", "/api/trusted-domains/self-add", body); },
+    liveBlocks: function (limit) { return request("GET", "/api/dashboard/live-blocks?limit=" + (limit||50)); },
+    reportLiveBlock: function (body) { return request("POST", "/api/dashboard/live-report", body); },
   };
 })();

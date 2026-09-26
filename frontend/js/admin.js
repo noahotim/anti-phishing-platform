@@ -4,9 +4,10 @@
 
   var me = null;
   var editingDomain = null;
-  var ABLE = { overview: false, reports: false, domains: false, blocked: false, audit: false, users: false, settings: false };
+  var ABLE = { overview: false, live: false, reports: false, domains: false, blocked: false, audit: false, users: false, settings: false };
   var NOTE = {
     overview: "Dashboard access is limited to analysts and administrators.",
+    live: "Live blocks — visible to you and super admin in real time.",
     reports: "Analysts and administrators can review phishing reports.",
     domains: "Only administrators manage trusted domains.",
     blocked: "Only administrators manage blocked sites and the content policy.",
@@ -15,10 +16,14 @@
     settings: "Only administrators change risk thresholds.",
   };
 
-  UI.boot(["SECURITY_ANALYST", "ADMIN", "SUPER_ADMIN"]).then(function (u) {
+  UI.boot(["SECURITY_ANALYST", "ADMIN", "SUPER_ADMIN", "EMPLOYEE"]).then(function (u) {
     me = u;
     ABLE.overview = true;
+    ABLE.live = true;
     ABLE.reports = true;
+    if (u.role === "ADMIN" || u.role === "SUPER_ADMIN" || u.role === "EMPLOYEE") {
+      // live is for everyone, domains/blocked/audit/settings remain admin-only
+    }
     if (u.role === "ADMIN" || u.role === "SUPER_ADMIN") {
       ABLE.domains = true;
       ABLE.blocked = true;
@@ -29,6 +34,17 @@
     maskTabs();
     bindTabs();
     showPanel("overview");
+    // also allow EMPLOYEE to see live even if boot required analyst — fallback fetch
+    if (!u || u.role === "EMPLOYEE") {
+      ABLE.live = true;
+      var liveBtn = document.querySelector('[data-tab="live"]');
+      if (liveBtn) liveBtn.classList.remove("hidden");
+    }
+  }).catch(function(){
+    // if boot fails for EMPLOYEE (needs analyst), still show live via direct API
+    ABLE.live = true;
+    var liveBtn = document.querySelector('[data-tab="live"]');
+    if (liveBtn) liveBtn.classList.remove("hidden");
   });
 
   function maskTabs() {
@@ -44,7 +60,10 @@
     });
   }
 
+  var liveTimer = null;
+  var lastLiveIds = new Set();
   function showPanel(name) {
+    if (liveTimer) { clearInterval(liveTimer); liveTimer = null; }
     document.querySelectorAll("#admin-tabs button").forEach(function (b) {
       b.classList.toggle("active", b.getAttribute("data-tab") === name);
     });
@@ -54,12 +73,51 @@
       return;
     }
     if (name === "overview") renderOverview(view);
+    else if (name === "live") renderLive(view);
     else if (name === "reports") renderReports(view);
     else if (name === "domains") renderDomains(view);
     else if (name === "blocked") renderBlocked(view);
     else if (name === "audit") renderAudit(view);
     else if (name === "users") renderUsers(view);
     else if (name === "settings") renderSettings(view);
+  }
+
+  /* ===================== Live blocks ===================== */
+  function renderLive(view) {
+    view.innerHTML = '<div class="card"><div class="head-row"><h2>● Live — blocked sites & ads</h2><span class="small muted" id="live-status">polling every 3s</span><button class="btn btn-sm" id="live-refresh" style="margin-left:auto;">Refresh now</button></div><p class="sub">Shows every site and YouTube ad blocked by the guard in real time — visible to you and super admin. Super admin is notified on each block.</p><div class="table-scroll" style="margin-top:14px;"><table><thead><tr><th>Time</th><th>Type</th><th>Host</th><th>URL</th><th>Category</th><th>IP</th></tr></thead><tbody id="live-rows"><tr><td colspan="6" class="empty"><span class="spin"></span> Loading live feed…</td></tr></tbody></table></div><p class="small muted" style="margin-top:10px;">Tip: keep this tab open — new blocks appear automatically and super admin gets a toast.</p></div>';
+    function fetchLive() {
+      API.liveBlocks(50).then(function(res){
+        var rows = res.events || [];
+        var tbody = document.getElementById("live-rows");
+        if (!tbody) return;
+        if (!rows.length) { tbody.innerHTML = '<tr><td colspan="6" class="empty">No blocks yet — browse to a betting or ad site to see it here.</td></tr>'; return; }
+        // notify super admin on new ids
+        var newOnes = rows.filter(function(r){ return !lastLiveIds.has(r.id); });
+        if (lastLiveIds.size && newOnes.length) {
+          newOnes.slice(0,3).forEach(function(r){
+            var msg = (r.type==="ad" ? "Ad blocked on " : "Site blocked: ") + r.host + " (" + (r.category||r.label||"") + ")";
+            UI.toast(msg, r.type==="ad" ? "ok" : "err");
+            // also desktop notification if permitted
+            try { if (Notification && Notification.permission==="granted") new Notification("PhishGuard: " + msg); } catch(e){}
+          });
+        }
+        lastLiveIds = new Set(rows.map(function(r){ return r.id; }));
+        tbody.innerHTML = rows.map(function(r){
+          var typeBadge = r.type==="ad" ? '<span class="type-badge" style="background:#1a3a5c;border-color:#2f6b8f;">AD</span>' : '<span class="type-badge" style="background:#3a1220;border-color:#ff6b6b;">SITE</span>';
+          return "<tr><td class=\"small muted\">" + UI.fmtDate(r.created_at) + "</td><td>" + typeBadge + "</td><td class=\"mono\">" + UI.esc(r.host) + "</td><td class=\"mono small\" title=\"" + UI.esc(r.url) + "\">" + UI.esc((r.url||"").slice(0,55)) + "</td><td><span class=\"type-badge\">" + UI.esc(r.category||r.label||"—") + "</span></td><td class=\"small muted\">" + UI.esc(r.ip||"—") + "</td></tr>";
+        }).join("");
+        var st = document.getElementById("live-status");
+        if (st) st.textContent = "updated " + new Date().toLocaleTimeString() + " — " + rows.length + " events";
+      }).catch(function(err){
+        var tbody = document.getElementById("live-rows");
+        if (tbody) tbody.innerHTML = '<tr><td colspan="6" class="empty">' + UI.esc(err.message) + "</td></tr>";
+      });
+    }
+    fetchLive();
+    liveTimer = setInterval(fetchLive, 3000);
+    var btn = document.getElementById("live-refresh");
+    if (btn) btn.addEventListener("click", fetchLive);
+    try { if (Notification && Notification.permission==="default") Notification.requestPermission(); } catch(e){}
   }
 
   /* ===================== Overview ===================== */
