@@ -1,16 +1,19 @@
 """YouTube download helpers for BOTIMPHISHGUARD browser guard.
 
-YouTube blocks plain datacenter requests with "Sign in to confirm you're not a
-bot". We work around it by trying several player clients in turn and by using
-yt-dlp's default extra (yt-dlp-ejs), which is required to solve the current
-JS challenge.
+YouTube blocks plain datacentre requests with "Sign in to confirm you're not a
+bot". We work around it in three layers:
+  1. try each yt-dlp player client until one is not blocked for that video,
+  2. use yt-dlp's default extra (yt-dlp-ejs), required for the JS challenge,
+  3. use YouTube cookies if an admin has uploaded them.
 """
 from __future__ import annotations
 
 import os
 import tempfile
-from fastapi import APIRouter, Query, HTTPException
+from fastapi import APIRouter, Depends, Query, Request, HTTPException
 from fastapi.responses import FileResponse
+
+from ..security import get_current_user, require_role
 
 router = APIRouter(prefix="/api/youtube", tags=["youtube"])
 
@@ -38,25 +41,85 @@ PLAYER_CLIENTS = [
 _COOKIE_FILE: str | None = None
 
 
+def _cookie_cache_path() -> str:
+    data_dir = os.path.dirname(os.environ.get("DATABASE_PATH", "/app/data/antiphishing.db"))
+    data_dir = data_dir or "/app/data"
+    os.makedirs(data_dir, exist_ok=True)
+    return os.path.join(data_dir, "yt_cookies.txt")
+
+
+def _load_uploaded_cookies() -> str | None:
+    """Cookies an admin uploaded through the dashboard, if any."""
+    p = _cookie_cache_path()
+    try:
+        if os.path.isfile(p) and os.path.getsize(p) > 10:
+            return p
+    except OSError:
+        pass
+    return None
+
+
 def _cookie_file() -> str | None:
-    """Optional YouTube cookies. Set YTDLP_COOKIES_FILE or YTDLP_COOKIES to raise
-    the success rate on videos that still hit the bot check."""
+    """Optional YouTube cookies. Uploaded cookies win, then env, then none.
+
+    Cookies are what lift YouTube's bot check on datacentre IPs, so an admin
+    upload makes downloads work on videos every player client gets refused for.
+    """
     global _COOKIE_FILE
     if _COOKIE_FILE is not None:
         return _COOKIE_FILE or None
     path = os.environ.get("YTDLP_COOKIES_FILE")
-    if path and os.path.isfile(path):
-        _COOKIE_FILE = path
-        return path
-    raw = os.environ.get("YTDLP_COOKIES")
-    if raw:
-        fd, tmp = tempfile.mkstemp(prefix="yt_cookies_", suffix=".txt")
-        with os.fdopen(fd, "w", encoding="utf-8") as fh:
-            fh.write(raw)
-        _COOKIE_FILE = tmp
-        return tmp
-    _COOKIE_FILE = ""
-    return None
+    if not path or not os.path.isfile(path):
+        path = _load_uploaded_cookies()
+    if not path:
+        raw = os.environ.get("YTDLP_COOKIES")
+        if raw:
+            fd, tmp = tempfile.mkstemp(prefix="yt_cookies_", suffix=".txt")
+            with os.fdopen(fd, "w", encoding="utf-8") as fh:
+                fh.write(raw)
+            path = tmp
+    _COOKIE_FILE = path or ""
+    return path or None
+
+
+@router.get("/cookies")
+def cookie_status(user=Depends(require_role("ADMIN", "SUPER_ADMIN"))):
+    """Whether YouTube cookies are loaded. Admin only."""
+    p = _cookie_file()
+    return {
+        "loaded": bool(p),
+        "source": "upload" if (p and p == _load_uploaded_cookies()) else ("env" if p else None),
+        "size": os.path.getsize(p) if p and os.path.isfile(p) else 0,
+    }
+
+
+@router.post("/cookies")
+async def cookie_upload(
+    request: Request,
+    user=Depends(require_role("ADMIN", "SUPER_ADMIN")),
+):
+    """Upload a Netscape cookies.txt from a signed-in YouTube session (admin only)."""
+    global _COOKIE_FILE
+    raw = (await request.body()).decode("utf-8", "replace")
+    if "# Netscape HTTP Cookie File" not in raw and ".youtube.com" not in raw:
+        raise HTTPException(status_code=400, detail="that is not a cookies.txt file")
+    if len(raw) < 20:
+        raise HTTPException(status_code=400, detail="cookies file is empty")
+    path = _cookie_cache_path()
+    with open(path, "w", encoding="utf-8") as fh:
+        fh.write(raw)
+    _COOKIE_FILE = path
+    return {"ok": True, "size": len(raw)}
+
+
+@router.delete("/cookies")
+def cookie_delete(user=Depends(require_role("ADMIN", "SUPER_ADMIN"))):
+    global _COOKIE_FILE
+    p = _load_uploaded_cookies()
+    if p and os.path.isfile(p):
+        os.remove(p)
+    _COOKIE_FILE = None
+    return {"ok": True}
 
 
 def _yt_dlp_available() -> bool:
