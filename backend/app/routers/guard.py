@@ -56,17 +56,27 @@ def guard_rules(org_id: int = Query(default=1, ge=1)):
 @router.get("/version")
 def guard_version():
     """Latest guard version for auto-update checks. Already installed guards poll this."""
-    # read from extension manifest if available
-    manifest_path = pathlib.Path(__file__).resolve().parent.parent.parent.parent / "extension" / "manifest.json"
-    ver = "1.1.16"
+    # The manifest is not always next to the backend (Docker copies it to /app/extension),
+    # so try every known location before falling back.
+    here = pathlib.Path(__file__).resolve()
+    candidates = [
+        here.parent.parent.parent.parent / "extension" / "manifest.json",
+        here.parent.parent.parent / "extension" / "manifest.json",
+        pathlib.Path("/app/extension/manifest.json"),
+        pathlib.Path("/app/frontend/extension/manifest.json"),
+        pathlib.Path.cwd() / "extension" / "manifest.json",
+    ]
+    ver = "0.0.0"
     name = "BOTIMPHISHGUARD"
-    try:
-        if manifest_path.exists():
-            data = json.loads(manifest_path.read_text(encoding="utf-8"))
-            ver = data.get("version") or ver
-            name = data.get("name") or name
-    except Exception:
-        pass
+    for manifest_path in candidates:
+        try:
+            if manifest_path.exists():
+                data = json.loads(manifest_path.read_text(encoding="utf-8"))
+                ver = data.get("version") or ver
+                name = data.get("name") or name
+                break
+        except Exception:
+            continue
     return {
         "version": ver,
         "name": name,

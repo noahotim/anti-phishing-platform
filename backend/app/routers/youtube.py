@@ -17,14 +17,46 @@ router = APIRouter(prefix="/api/youtube", tags=["youtube"])
 UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
       "(KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36")
 
-# Ordered most to least likely to work from a datacentre IP.
-CLIENT_SETS = [
-    ["tv", "android_vr", "web_safari", "mweb"],
-    ["android_vr", "ios", "web_safari"],
-    ["web_embedded", "tv", "mweb"],
-    ["ios", "android", "web"],
+# Tried one at a time, most to least likely to work from a datacentre IP.
+# Different clients hit different bot-check rules, so one of these usually gets
+# through for a given video.
+PLAYER_CLIENTS = [
+    "tv_simply",
+    "android_vr",
+    "web_safari",
+    "mweb",
+    "tv",
+    "android_creator",
+    "ios",
+    "web_embedded",
+    "android_testsuite",
+    "web_creator",
+    "android_music",
     None,  # last resort: yt-dlp defaults
 ]
+
+_COOKIE_FILE: str | None = None
+
+
+def _cookie_file() -> str | None:
+    """Optional YouTube cookies. Set YTDLP_COOKIES_FILE or YTDLP_COOKIES to raise
+    the success rate on videos that still hit the bot check."""
+    global _COOKIE_FILE
+    if _COOKIE_FILE is not None:
+        return _COOKIE_FILE or None
+    path = os.environ.get("YTDLP_COOKIES_FILE")
+    if path and os.path.isfile(path):
+        _COOKIE_FILE = path
+        return path
+    raw = os.environ.get("YTDLP_COOKIES")
+    if raw:
+        fd, tmp = tempfile.mkstemp(prefix="yt_cookies_", suffix=".txt")
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
+            fh.write(raw)
+        _COOKIE_FILE = tmp
+        return tmp
+    _COOKIE_FILE = ""
+    return None
 
 
 def _yt_dlp_available() -> bool:
@@ -36,44 +68,56 @@ def _yt_dlp_available() -> bool:
 
 
 def _base_opts() -> dict:
-    return {
+    opts = {
         "quiet": True,
         "no_warnings": True,
         "noplaylist": True,
         "socket_timeout": 30,
-        "retries": 5,
-        "fragment_retries": 5,
+        "retries": 3,
+        "fragment_retries": 3,
+        "extractor_retries": 2,
         "http_headers": {"User-Agent": UA, "Accept-Language": "en-US,en;q=0.9"},
         "geo_bypass": True,
     }
+    cf = _cookie_file()
+    if cf:
+        opts["cookiefile"] = cf
+    return opts
 
 
-def _opts_for_clients(clients):
+def _opts_for_client(client):
     opts = _base_opts()
-    if clients:
-        opts["extractor_args"] = {"youtube": {"player_client": clients}}
+    if client:
+        opts["extractor_args"] = {"youtube": {"player_client": [client]}}
     return opts
 
 
 def _run_with_fallbacks(build_opts, url, download):
-    """Try each player client set until one works. Returns (ydl, info)."""
+    """Try each player client until one works. Returns the yt-dlp info dict."""
     import yt_dlp  # type: ignore
 
     errors = []
-    for clients in CLIENT_SETS:
-        opts = _base_opts()
-        extra = build_opts(clients)
-        opts.update(extra)
+    for client in PLAYER_CLIENTS:
+        opts = _opts_for_client(client)
+        try:
+            opts.update(build_opts(client))
+        except Exception as e:  # noqa: BLE001
+            errors.append(f"{client or 'default'}: {e}")
+            continue
         try:
             with yt_dlp.YoutubeDL(opts) as ydl:
                 info = ydl.extract_info(url, download=download)
                 if info:
                     return info
         except Exception as e:  # noqa: BLE001
-            errors.append(f"{clients or 'default'}: {e}")
+            errors.append(f"{client or 'default'}: {str(e)[:160]}")
     raise HTTPException(
         status_code=502,
-        detail="YouTube refused the request from the server. " + " | ".join(errors[-3:]),
+        detail=(
+            "YouTube blocked every request from the server for this video. "
+            "This is YouTube's anti-bot check on datacentre IPs, not a broken link. "
+            + " | ".join(errors[-4:])
+        ),
     )
 
 

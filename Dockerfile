@@ -10,6 +10,9 @@ COPY backend/requirements.txt ./requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 COPY backend/ ./backend/
 COPY frontend/ ./frontend/
+# The guard reads the extension manifest from here to serve /api/guard/version,
+# which is what makes already-installed copies see new updates.
+COPY extension/manifest.json ./extension/manifest.json
 ENV PYTHONPATH=/app/backend
 ENV HOST=0.0.0.0
 ENV PORT=10000
