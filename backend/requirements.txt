@@ -6,3 +6,4 @@ httpx>=0.27
 pytest>=8.0
 python-multipart>=0.0.9
 yt-dlp[default]>=2025.6.30
+bgutil-ytdlp-pot-provider>=2025.8.11

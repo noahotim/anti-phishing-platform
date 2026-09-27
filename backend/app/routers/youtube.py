@@ -130,6 +130,18 @@ def _yt_dlp_available() -> bool:
         return False
 
 
+POT_PORT = os.environ.get("BGUTIL_PORT", "4416")
+
+
+def _pot_args() -> dict:
+    """YouTube requires a PO token for requests from datacentre IPs. The provider
+    runs as a sidecar inside the container; if it is not up we carry on without,
+    which still covers the videos YouTube does not challenge."""
+    return {
+        "youtubepot-bgutilhttp": {"base_url": f"http://127.0.0.1:{POT_PORT}"}
+    }
+
+
 def _base_opts() -> dict:
     opts = {
         "quiet": True,
@@ -141,6 +153,7 @@ def _base_opts() -> dict:
         "extractor_retries": 2,
         "http_headers": {"User-Agent": UA, "Accept-Language": "en-US,en;q=0.9"},
         "geo_bypass": True,
+        "extractor_args": _pot_args(),
     }
     cf = _cookie_file()
     if cf:
@@ -151,7 +164,8 @@ def _base_opts() -> dict:
 def _opts_for_client(client):
     opts = _base_opts()
     if client:
-        opts["extractor_args"] = {"youtube": {"player_client": [client]}}
+        # merge, do not replace, or the PO token settings are lost
+        opts["extractor_args"]["youtube"] = {"player_client": [client]}
     return opts
 
 
