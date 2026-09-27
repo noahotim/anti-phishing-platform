@@ -17,6 +17,9 @@
 // `chrome`. Pick whichever exists.
 const NS = (typeof browser !== "undefined" && browser) ? browser : chrome;
 
+// Last popup timestamp per host, so one video does not spam ad notifications.
+const adPopupState = {};
+
 const DEFAULT_SERVER = "https://phishguard-8vri.onrender.com";
 const WARNING_PAGE = "warning.html";
 const CACHE_TTL_MS = 10 * 60 * 1000;
@@ -472,18 +475,25 @@ NS.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     var host = (msg.host || "").toLowerCase();
     var url = msg.url || "";
     reportLive(host, url, "ADS", "Advertisement", "ad");
-    try {
-      if (NS.notifications && NS.notifications.create) {
-        NS.notifications.create("BOTIMPHISHGUARD-ad-" + Date.now(), {
-          type: "basic",
-          iconUrl: NS.runtime.getURL("icons/icon128.png"),
-          title: "BOTIMPHISHGUARD blocked an ad on " + host,
-          message: "An ad has been blocked — video continues playing",
-          priority: 1,
-        });
-        setTimeout(function(){ try{ NS.notifications.clear("BOTIMPHISHGUARD-ad-" + Date.now()); }catch(e){} }, 4000);
-      }
-    } catch(e){}
+    // Rate limit the popup so a long video does not spam notifications
+    var now = Date.now();
+    if (!adPopupState[host]) adPopupState[host] = 0;
+    if (now - adPopupState[host] > 60000) {
+      adPopupState[host] = now;
+      try {
+        if (NS.notifications && NS.notifications.create) {
+          var nid = "BOTIMPHISHGUARD-ad-" + now;
+          NS.notifications.create(nid, {
+            type: "basic",
+            iconUrl: NS.runtime.getURL("icons/icon128.png"),
+            title: "Blocked an ad on " + host,
+            message: "Ad blocked, video continues playing",
+            priority: 1,
+          });
+          setTimeout(function(){ try{ NS.notifications.clear(nid); }catch(e){} }, 4000);
+        }
+      } catch(e){}
+    }
     // also record locally
     recordBlock(host, { blockedLabel: "Ad blocked", blockedCategory: "ADS", classification: "AD" });
     sendResponse({ ok: true });
