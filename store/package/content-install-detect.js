@@ -1,0 +1,7 @@
+// Sets a flag so https://phishguard-8vri.onrender.com/app/install.html can detect that PhishGuard is already installed
+try {
+  window.phishGuardInstalled = true;
+  document.documentElement.setAttribute('data-phishguard-installed', 'true');
+  // Also dispatch an event for the page to listen to
+  window.dispatchEvent(new CustomEvent('phishguard-installed', { detail: { installed: true } }));
+} catch (e) {}

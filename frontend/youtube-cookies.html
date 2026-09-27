@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>YouTube download cookies — BOTIMPHISHGUARD</title>
+<style>
+  :root { color-scheme: dark; }
+  body { margin:0; background:#0b1a2b; color:#eaf2ff; font:15px/1.5 system-ui,Segoe UI,sans-serif; }
+  .wrap { max-width:760px; margin:0 auto; padding:28px 20px 60px; }
+  h1 { font-size:22px; margin:0 0 4px; }
+  .sub { color:#8fb0cf; margin:0 0 22px; font-size:14px; }
+  .card { background:#132a41; border:1px solid #23455f; border-radius:10px; padding:18px; margin-bottom:16px; }
+  .card.warn { border-color:#7a5a1e; background:#1d1808; }
+  h2 { font-size:16px; margin:0 0 10px; }
+  textarea { width:100%; min-height:180px; background:#0b1a2b; color:#cfe0f3; border:1px solid #23455f;
+             border-radius:6px; padding:10px; font:12px/1.4 ui-monospace,Consolas,monospace; }
+  input[type=file] { color:#cfe0f3; }
+  button { background:#1a5c2a; color:#fff; border:0; border-radius:6px; padding:9px 16px;
+           font:600 14px system-ui; cursor:pointer; }
+  button.ghost { background:#1a3a5c; border:1px solid #2f6b8f; color:#eaf2ff; }
+  button[disabled] { opacity:0.5; cursor:not-allowed; }
+  .row { display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-top:12px; }
+  .status { padding:10px 12px; border-radius:6px; background:#0b1a2b; border:1px solid #23455f; font-size:14px; }
+  .ok { border-color:#1a5c2a; color:#7ee2a8; }
+  .bad { border-color:#7a2020; color:#ff9d9d; }
+  ol, ul { margin:8px 0 0; padding-left:22px; }
+  li { margin:5px 0; }
+  code { background:#0b1a2b; padding:1px 5px; border-radius:4px; font-size:13px; }
+  a { color:#5ede8f; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>YouTube download cookies</h1>
+  <p class="sub">Admin only. YouTube blocks downloads from server IP addresses with
+     &ldquo;Sign in to confirm you&rsquo;re not a bot&rdquo;. Uploading your cookies lets the
+     server download those videos too.</p>
+
+  <div class="card" id="status-card">
+    <h2>Current status</h2>
+    <div class="status" id="status">Checking&hellip;</div>
+    <div class="row">
+      <button class="ghost" id="btn-refresh">Refresh status</button>
+      <button class="ghost" id="btn-delete">Delete cookies</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Upload cookies.txt</h2>
+    <p style="color:#8fb0cf;margin:4px 0 10px;font-size:14px">
+      Choose a <code>cookies.txt</code> file exported from a browser that is signed in to YouTube,
+      or paste the file contents below.
+    </p>
+    <input type="file" id="file" accept=".txt,text/plain">
+    <div style="height:12px"></div>
+    <textarea id="text" placeholder="# Netscape HTTP Cookie File&#10;..."></textarea>
+    <div class="row">
+      <button id="btn-upload">Upload cookies</button>
+      <span id="msg" style="font-size:14px"></span>
+    </div>
+  </div>
+
+  <div class="card warn">
+    <h2>How to export cookies.txt</h2>
+    <ol>
+      <li>Sign in to <code>youtube.com</code> in a normal browser window.</li>
+      <li>Install a cookies exporter extension, or run this in that browser&rsquo;s developer console
+          on youtube.com and copy the output:<br><br>
+          <code>document.cookie</code> will <b>not</b> work &mdash; YouTube cookies are HttpOnly.
+          Use a cookies-export extension, that is the reliable route.</li>
+      <li>Open the exported <code>cookies.txt</code> here and upload it.</li>
+    </ol>
+    <p style="color:#ffd479;margin:12px 0 0;font-size:14px"><b>Security note:</b> these cookies are a
+      live login to your YouTube account. Anyone with access to the server can read them. Upload it
+      only to your own server, and sign out of YouTube everywhere afterwards to invalidate them.</p>
+  </div>
+</div>
+
+<script src="/js/api.js"></script>
+<script>
+(function () {
+  var statusEl = document.getElementById("status");
+  var msgEl = document.getElementById("msg");
+
+  function show(m, cls) { statusEl.textContent = m; statusEl.className = "status " + (cls || ""); }
+
+  API.me().then(function (user) {
+    var role = (user && (user.role || (user.user && user.user.role))) || "";
+    if (role !== "ADMIN" && role !== "SUPER_ADMIN") {
+      show("You must be an admin to use this page.", "bad");
+      return;
+    }
+    load();
+  }).catch(function () { show("Please sign in as an admin first.", "bad"); });
+
+  function load() {
+    API.ytCookieStatus().then(function (d) {
+      if (d.loaded) {
+        show("Cookies loaded (source: " + (d.source || "unknown") + ", " + d.size + " bytes). Downloads will now work on videos that were being refused.", "ok");
+      } else {
+        show("No cookies uploaded. Downloads work on many videos already, but YouTube refuses others with a bot check.", "");
+      }
+    }).catch(function (e) { show("Could not read status: " + e.message, "bad"); });
+  }
+
+  document.getElementById("btn-refresh").addEventListener("click", load);
+
+  document.getElementById("btn-delete").addEventListener("click", function () {
+    API.ytCookieDelete().then(function () { msgEl.textContent = "Deleted."; load(); })
+      .catch(function (e) { msgEl.textContent = e.message; });
+  });
+
+  document.getElementById("file").addEventListener("change", function (e) {
+    var f = e.target.files && e.target.files[0];
+    if (!f) return;
+    var fr = new FileReader();
+    fr.onload = function () { document.getElementById("text").value = fr.result; };
+    fr.readAsText(f);
+  });
+
+  document.getElementById("btn-upload").addEventListener("click", function () {
+    var text = document.getElementById("text").value;
+    if (!text || text.indexOf(".youtube.com") === -1) {
+      msgEl.textContent = "That does not look like a cookies.txt file.";
+      return;
+    }
+    msgEl.textContent = "Uploading…";
+    API.ytCookieUpload(text).then(function (d) {
+      msgEl.textContent = "Uploaded " + d.size + " bytes.";
+      load();
+    }).catch(function (e) { msgEl.textContent = e.message; });
+  });
+})();
+</script>
+</body>
+</html>

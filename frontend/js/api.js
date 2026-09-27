@@ -175,5 +175,21 @@
     selfAddTrusted: function (body) { return request("POST", "/api/trusted-domains/self-add", body); },
     liveBlocks: function (limit) { return request("GET", "/api/dashboard/live-blocks?limit=" + (limit||50)); },
     reportLiveBlock: function (body) { return request("POST", "/api/dashboard/live-report", body); },
+
+    ytCookieStatus: function () { return request("GET", "/api/youtube/cookies"); },
+    ytCookieUpload: function (text) {
+      // cookies.txt is uploaded as the raw request body, not JSON
+      var headers = {};
+      var token = getToken();
+      if (token) headers["Authorization"] = "Bearer " + token;
+      return fetch("/api/youtube/cookies", { method: "POST", headers: headers, body: text })
+        .then(function (res) {
+          return res.json().then(function (data) {
+            if (!res.ok) throw new Error((data && data.detail) || ("HTTP " + res.status));
+            return data;
+          });
+        });
+    },
+    ytCookieDelete: function () { return request("DELETE", "/api/youtube/cookies"); },
   };
 })();
