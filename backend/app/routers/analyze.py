@@ -11,6 +11,7 @@ from ..audit import audit
 from ..content_policy import CATEGORY_LABELS
 from ..security import CurrentUser, client_ip, get_current_user, get_optional_user
 from ..services.analyzer import UrlAnalyzer
+from ..services.url_parser import sanitize_url_for_logging
 
 router = APIRouter(prefix="/api/analyze", tags=["analyze"])
 
@@ -35,8 +36,9 @@ def analyze(
     audit(action="SCAN_URL", actor_id=user.id if user else None,
           actor_email=user.email if user else "anonymous",
           org_id=org_id, ip=client_ip(request),
-          new={"url": req.url[:200], "classification": result.classification,
-               "risk_score": result.risk_score})
+           new={"url": sanitize_url_for_logging(req.url)[:200], "classification": result.classification,
+                "risk_score": result.risk_score})
+
     return result.to_dict()
 
 
@@ -53,7 +55,7 @@ def precheck(req: AnalyzeRequest, request: Request):
         req.url.strip(), source="PRECHECK"
     )
     d = result.to_dict()
-    blocked = d.get("classification") == "MALICIOUS"
+    blocked = d.get("blocked") is True or d.get("classification") in ("MALICIOUS", "HIGH_RISK")
     category = d.get("blocked_category") or ""
     label = CATEGORY_LABELS.get(category, category) if category else ""
     reasons = d.get("reasons") or []
@@ -73,7 +75,11 @@ def precheck(req: AnalyzeRequest, request: Request):
         "blocked_reason": reason or None,
         "classification": d.get("classification"),
         "risk_score": d.get("risk_score"),
+        "risk_level": d.get("risk_level"),
+        "confidence": d.get("confidence"),
         "matched_domain": d.get("matched_domain"),
+        "evidence": d.get("evidence"),
+        "explanation": d.get("explanation"),
         "safe_to_visit": bool(d.get("safe_to_visit")),
     }
 

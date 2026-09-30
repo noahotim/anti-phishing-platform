@@ -12,7 +12,7 @@ def test_precheck_anonymous_ok(client):
     r = client.post("/api/analyze/precheck", json={"url": "https://www.google.com/"})
     assert r.status_code == 200
     d = r.json()
-    assert d["classification"] in ("SAFE", "MALICIOUS", "SUSPICIOUS", "UNKNOWN")
+    assert d["classification"] in ("SAFE", "MALICIOUS", "HIGH_RISK", "SUSPICIOUS", "UNKNOWN")
     assert d["blocked"] is False
     assert "risk_score" in d
 

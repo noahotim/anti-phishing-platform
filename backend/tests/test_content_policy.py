@@ -77,12 +77,15 @@ def test_content_policy_settings_validation(client, super_headers):
                     headers=super_headers)
     assert ok.status_code == 200
     got = client.get("/api/settings/content-policy", headers=super_headers)
-    assert got.json() == ["SOCIAL_MEDIA"]
-    client.put("/api/settings/content-policy",
-               json={"categories": ["GAMBLING", "ADULT"]}, headers=super_headers)
-    bad = client.put("/api/settings/content-policy", json={"categories": ["NOPE"]},
-                     headers=super_headers)
-    assert bad.status_code == 400
+    # Gambling is always enforced, so it is added to an explicit policy.
+    assert got.json() == ["SOCIAL_MEDIA", "GAMBLING"]
+    try:
+        bad = client.put("/api/settings/content-policy", json={"categories": ["NOPE"]},
+                         headers=super_headers)
+        assert bad.status_code == 400
+    finally:
+        client.put("/api/settings/content-policy",
+                   json={"categories": ["GAMBLING", "ADULT"]}, headers=super_headers)
 
 
 def test_update_and_delete_blocked_site(client, super_headers):

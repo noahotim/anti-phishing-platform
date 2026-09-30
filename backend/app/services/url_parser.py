@@ -11,12 +11,33 @@ import ipaddress
 import re
 from dataclasses import dataclass, field
 from typing import Optional
-from urllib.parse import unquote, urlsplit
+from urllib.parse import unquote, urlsplit, urlunsplit
 
-from .public_suffix import PUBLIC_SUFFIXES
+from .public_suffix import (
+    INSTITUTIONAL_SECOND_LEVEL_LABELS,
+    PUBLIC_SUFFIXES,
+    STANDARD_SECOND_LEVEL_LABELS,
+)
 
 CPUBCLI_OPEN = "\u3002\uFF0E\uFF61"  # ideographic full stop / fullwidth full stop / halfwidth
 _HTTP_SCHEME = re.compile(r"^(https?)\Z", re.IGNORECASE)
+
+
+def _safe_unquote(value: str) -> str:
+    """Decode percent escapes without raising on malformed sequences."""
+    try:
+        return unquote(value or "", encoding="utf-8", errors="replace")
+    except Exception:
+        return value or ""
+
+
+def _to_unicode_host(ascii_host: str) -> str:
+    try:
+        import idna
+
+        return idna.decode(ascii_host, uts46=True)
+    except Exception:
+        return ascii_host
 
 
 def strip_userinfo(host: str) -> str:
@@ -51,9 +72,10 @@ def normalize_host_ascii(host: str) -> str:
 def split_registered_domain(host: str, public_suffixes: Optional[set[str]] = None) -> tuple[str, str]:
     """Return (registered_domain, subdomain).
 
-    Uses an embedded public-suffix list of the most common commercial TLDs
-    plus a few country codes.  This is deliberately strict for a security tool:
-    we operate on the registrable domain, never on a bare TLD match.
+    Uses an embedded suffix set, including two-label institutional and country
+    suffixes, and recognizes common second-level country domains.  This is
+    deliberately strict for a security tool: ownership checks operate on the
+    registrable domain, never on a bare suffix match.
     """
     host = normalize_host_ascii(host)
     if not host:
@@ -63,18 +85,25 @@ def split_registered_domain(host: str, public_suffixes: Optional[set[str]] = Non
     labels = host.split(".")
     suffix_set = (public_suffixes if public_suffixes is not None else
                   PUBLIC_SUFFIXES)
-    effective = suffix_set
 
     # Longest known public suffix at the end of the hostname.
     suffix_len = 0
-    current: list[str] = []
-    for i in range(len(labels) - 1, -1, -1):
-        current.insert(0, labels[i])
-        combined = "_".join(current) if len(current) > 1 else current[0]
-        if combined in effective:
-            suffix_len = len(current)
-        else:
+    for length in range(min(4, len(labels)), 0, -1):
+        candidate = ".".join(labels[-length:])
+        if candidate in suffix_set:
+            suffix_len = length
             break
+
+    if suffix_len == 0 and len(labels) >= 3:
+        second_level = labels[-2]
+        top_level = labels[-1]
+        if second_level in INSTITUTIONAL_SECOND_LEVEL_LABELS:
+            # Generic academic/government/military namespace recognition.
+            suffix_len = 2
+        elif (len(top_level) == 2
+              and second_level in STANDARD_SECOND_LEVEL_LABELS):
+            # Generic country second-level domain recognition.
+            suffix_len = 2
 
     if suffix_len == 0:
         if len(labels) >= 2:
@@ -84,10 +113,11 @@ def split_registered_domain(host: str, public_suffixes: Optional[set[str]] = Non
             reg = host
             sub = ""
     else:
-        if len(labels) >= suffix_len + 1:
-            reg = ".".join(labels[len(labels) - suffix_len - 1:])
-            sub = ".".join(labels[: len(labels) - suffix_len - 1])
+        if len(labels) > suffix_len:
+            reg = ".".join(labels[-(suffix_len + 1):])
+            sub = ".".join(labels[:-(suffix_len + 1)])
         else:
+            # The whole hostname is itself a public suffix.
             reg = host
             sub = ""
     return reg.rstrip("."), sub
@@ -124,6 +154,9 @@ class ParsedURL:
     registered_domain: str = ""
     subdomain: str = ""
     ascii_host: str = ""
+    unicode_host: str = ""
+    decoded_path: str = "/"
+    decoded_query: str = ""
     is_ip: bool = False
     warnings: list[str] = field(default_factory=list)
 
@@ -148,8 +181,11 @@ class ParsedURL:
             "registered_domain": self.registered_domain,
             "subdomain": self.subdomain,
             "ascii_host": self.ascii_host,
+            "unicode_host": self.unicode_host,
             "tld": self.tld,
             "is_ip": self.is_ip,
+            "decoded_path": self.decoded_path,
+            "decoded_query": self.decoded_query,
             "warnings": self.warnings,
         }
 
@@ -173,6 +209,8 @@ def parse_url(url: str) -> ParsedURL:
     parsed.path = parts.path or "/"
     parsed.query = parts.query
     parsed.fragment = parts.fragment
+    parsed.decoded_path = _safe_unquote(parsed.path)
+    parsed.decoded_query = _safe_unquote(parsed.query)
 
     if raw.startswith("@") or parsed.username:
         parsed.warnings.append("URL contains userinfo authority before host")
@@ -183,6 +221,7 @@ def parse_url(url: str) -> ParsedURL:
         parsed.warnings.append("userinfo prefix stripped before analysis")
     parsed.hostname = host
     parsed.ascii_host = normalize_host_ascii(host)
+    parsed.unicode_host = _to_unicode_host(parsed.ascii_host)
 
     if not parsed.ascii_host:
         parsed.warnings.append("unable to derive an ASCII hostname")
@@ -193,9 +232,6 @@ def parse_url(url: str) -> ParsedURL:
     rd, sub = split_registered_domain(parsed.ascii_host)
     parsed.registered_domain = rd
     parsed.subdomain = sub
-
-    if "." not in parsed.hostname or parsed.is_ip:
-        parsed.is_ip = False
 
     # Best-effort IP detection on the ASCII host.
     if _is_ip_or_local(parsed.ascii_host):
@@ -212,6 +248,34 @@ def parse_url(url: str) -> ParsedURL:
         parsed.warnings.append("potential XML/SOAP confusion suffix")
 
     return parsed
+
+
+def sanitize_url_for_logging(url: str) -> str:
+    """Return a log-safe URL with any authority credentials redacted."""
+    raw = (url or "").strip()
+    if "@" not in raw:
+        return raw
+    try:
+        parts = urlsplit(raw)
+        if parts.username is None and parts.password is None and "@" not in (parts.netloc or ""):
+            return raw
+        host = parts.hostname or ""
+        netloc = host
+        if parts.port:
+            netloc = f"{netloc}:{parts.port}"
+        return urlunsplit(
+            (
+                parts.scheme,
+                f"redacted-userinfo@{netloc}" if host else "redacted-userinfo",
+                parts.path,
+                parts.query,
+                parts.fragment,
+            )
+        )
+    except ValueError:
+        # Never return a possibly credential-bearing string when parsing fails.
+        head, _, _ = raw.rpartition("@")
+        return "redacted-userinfo" if head else "redacted-url"
 
 
 def looks_like_url(text: str) -> bool:

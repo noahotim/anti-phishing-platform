@@ -15,22 +15,22 @@ DATASET = [
     ("https://www.microsoft.com/", "SAFE", "microsoft.com"),
     ("https://company-example.com/dashboard", "SAFE", "company-example.com"),
     # --- typosquatting / substitution / insertion / deletion ---
-    ("https://examp1e.com/login", "MALICIOUS", "example.com"),   # 1->e (fold)
-    ("https://exampple.com/", "MALICIOUS", "example.com"),       # insertion
-    ("https://exampl.com/", "MALICIOUS", "example.com"),         # deletion
-    ("https://exampel.com/", "MALICIOUS", "example.com"),        # transposition
-    ("https://c1tibank.com/secure/login", "MALICIOUS", "citibank.com"),
+    ("https://examp1e.com/login", "HIGH_RISK", "example.com"),   # 1->l (fold)
+    ("https://exampple.com/", "SUSPICIOUS", "example.com"),       # insertion
+    ("https://exampl.com/", "SUSPICIOUS", "example.com"),         # deletion
+    ("https://exampel.com/", "SUSPICIOUS", "example.com"),        # transposition
+    ("https://c1tibank.com/secure/login", "HIGH_RISK", "citibank.com"),
     # --- look-alike / brand-prefix / suffix ---
     ("https://example-secure.com/", "SUSPICIOUS", "example.com"),
     ("https://example-login.com/", "SUSPICIOUS", "example.com"),
-    ("https://example.com.security-example.com/", "MALICIOUS", "example.com"),
+    ("https://example.com.security-example.com/", "SUSPICIOUS", "example.com"),
     ("https://securityexample.com/", "SUSPICIOUS", "example.com"),
     # --- unicode homoglyph / punycode ---
-    ("https://еxample.com/", "MALICIOUS", "example.com"),
-    ("https://xn--xample-2of.com/", "MALICIOUS", "example.com"),
+    ("https://еxample.com/", "SUSPICIOUS", "example.com"),
+    ("https://xn--xample-2of.com/", "SUSPICIOUS", "example.com"),
     # --- TLD manipulation ---
-    ("https://example.co/", "MALICIOUS", "example.com"),
-    ("https://citibank.xyz/", "MALICIOUS", "citibank.com"),
+    ("https://example.co/", "UNKNOWN", "example.com"),
+    ("https://citibank.xyz/", "HIGH_RISK", "citibank.com"),
     # --- credential-in-URL deception ---
     ("https://example.com@malicious-attacker.com/", "SUSPICIOUS", None),
     # --- known threat intel ---

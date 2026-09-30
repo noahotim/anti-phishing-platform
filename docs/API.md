@@ -65,15 +65,27 @@ Response `200` (abridged):
   "username": "",
   "password": "",
   "tld": "com",
-  "classification": "MALICIOUS",
-  "risk_score": 63,
+  "classification": "HIGH_RISK",
+  "risk_score": 65,
   "risk_level": "HIGH",
+  "confidence": 0.88,
+  "blocked": true,
   "reasons": [
-    "Destination domain is not an approved domain",
-    "Domain visually matches approved domain \"example.com\" (confusable homoglyphs)"
+    "The domain visually impersonates example.com using confusable characters.",
+    "A credential-related path is combined with a suspicious hostname."
   ],
-  "signals": { "exact_match": false, "trusted_exact": false, "matched_domain": "example.com",
-               "edit_distance": 0, "confusable_exact_match": true, "untrusted_destination": true },
+  "explanation": [
+    "The domain visually impersonates example.com using confusable characters.",
+    "A credential-related path is combined with a suspicious hostname."
+  ],
+  "evidence": {
+    "critical": [],
+    "strong": ["confirmed_homograph"],
+    "medium": ["credential_path_with_suspicious_domain"],
+    "weak": ["not_in_trusted_database"],
+    "contextual": ["no_reputation_data", "secure_scheme"]
+  },
+  "signals": { "exact_match": false, "trusted_exact": false, "matched_domain": "example.com" },
   "content_blocked": true,
   "blocked_category": "GAMBLING",
   "matched_domain": "example.com",
@@ -84,8 +96,12 @@ Response `200` (abridged):
 }
 ```
 
-`classification` ∈ {`SAFE`, `SUSPICIOUS`, `MALICIOUS`, `UNKNOWN`};
-`risk_score` ∈ 0–100. `safe_to_visit` is true only for `SAFE` with no caveat.
+`classification` ∈ {`SAFE`, `UNKNOWN`, `SUSPICIOUS`, `HIGH_RISK`, `MALICIOUS`};
+`risk_score` ∈ 0–100. `safe_to_visit` is true only for `SAFE`; the browser
+leaves `UNKNOWN` accessible unless it is stopped by threat intelligence,
+content policy, or an explicit whitelist-only lockdown. Strong evidence or at
+least two medium findings are required before an unknown destination can be
+called `SUSPICIOUS`; weak evidence alone remains `UNKNOWN`.
 When a scan is stopped by the organisation's content policy,
 `content_blocked` is true, `blocked_category` names the category, and the scan
 is reported as `MALICIOUS` with score 100 and a visible policy reason.
@@ -115,8 +131,10 @@ Response `200`:
 }
 ```
 
-`blocked` is true whenever the classification is `MALICIOUS` (threat feed,
-manual block, typosquat, homoglyph, or active content-policy category).
+`blocked` is true whenever the classification is `MALICIOUS` or `HIGH_RISK`
+(threat feed, manual block, typosquat, homoglyph, or active content-policy
+category). The extension also blocks `SUSPICIOUS` only when the user enables
+“Block Suspicious Sites”; `UNKNOWN` remains accessible.
 
 ### `GET /api/analyze/{scan_id}`
 
@@ -186,11 +204,11 @@ Analyst+. Returns:
 {
   "days": 30,
   "total_scans": 32,
-  "safe": 10, "suspicious": 6, "malicious": 4, "unknown": 12,
+  "safe": 10, "suspicious": 6, "malicious": 4, "high_risk": 1, "unknown": 12,
   "blocked": 10,
   "top_impersonated":  [ { "domain": "example.com", "count": 3 } ],
-  "risk_distribution": [ { "label": "0-20", "count": 18 }, { "label": "21-50", "count": 9 },
-                         { "label": "51-75", "count": 3 }, { "label": "76-100", "count": 2 } ],
+  "risk_distribution": [ { "label": "0-20", "count": 18 }, { "label": "21-59", "count": 9 },
+                         { "label": "60-79", "count": 3 }, { "label": "80-100", "count": 2 } ],
   "recent_scans": [ { "id": 1, "url": "…", "classification": "…", "risk_score": 63,
                       "matched_domain": "…", "source": "EMPLOYEE", "created_at": "…" } ],
   "sources": [ { "source": "EMPLOYEE", "count": 20 } ],

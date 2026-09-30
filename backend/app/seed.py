@@ -18,8 +18,8 @@ DEFAULT_ORG_NAME = "Example Corp"
 DEFAULT_TRUSTED_DOMAINS = [
     {"domain": "maybank2u.com", "category": "Banking", "critical": True},
     {"domain": "citibank.com", "category": "Banking", "critical": True},
-    {"domain": "microsoft.com", "category": "Software", "critical": True},
-    {"domain": "google.com", "category": "Software", "critical": True},
+    {"domain": "microsoft.com", "category": "Software", "critical": True, "wildcard": True},
+    {"domain": "google.com", "category": "Software", "critical": True, "wildcard": True},
     {"domain": "company-example.com", "category": "Corporate", "critical": True},
     {"domain": "example.com", "category": "Corporate", "critical": False},
 ]
@@ -148,7 +148,7 @@ def seed() -> None:
             """,
             (
                 org_id,
-                '{"low":20,"moderate":50,"high":75}',
+                '{"low":20,"moderate":59,"high":79}',
                 admin_id, database.utcnow_iso(),
             ),
         )

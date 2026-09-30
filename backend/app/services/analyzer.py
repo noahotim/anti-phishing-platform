@@ -6,27 +6,32 @@ external threat-intel provider.  The analysis pipeline is:
   URL input
     → parse_url (authoritative host decomposition)
     → normalize_domain_identity / to_ascii / punycode flags
+    → threat-intelligence provider verdicts
     → trusted-domain lookup (exact, allowed-subdomain aware)
-    → confusable & similarity analysis against the trusted set
-    → signal assembly
-    → risk scoring → classification → reasons
-    → threat-intel enrichment (provider registry)
+    → brand/impersonation analysis against plausible trusted candidates
+    → URL-attack analysis and structured evidence
+    → evidence correlation, scoring, confidence, and explanations
     → persistence (url_scans + threat_intel_results)
 """
 from __future__ import annotations
 
 import json
 import logging
-import re
 from dataclasses import dataclass, field
-from typing import Any, Optional
+from typing import Optional
 
 from .. import database
 from ..config import settings
 from . import normalization
-from .public_suffix import PUBLIC_SUFFIXES
-from .risk_scorer import MALICIOUS, SAFE, SUSPICIOUS, UNKNOWN, score_signals
-from .similarity import SimilarityEngine, SUSPICIOUS_TLDS, keyword_hits
+from .detection import build_detection_evidence
+from .evidence import (
+    HIGH_RISK,
+    MALICIOUS,
+    SAFE,
+    SUSPICIOUS,
+    UNKNOWN,
+    correlate_evidence,
+)
 from .threat_intel import (
     VERDICT_BENIGN,
     VERDICT_MALICIOUS,
@@ -35,13 +40,9 @@ from .threat_intel import (
     ThreatIntelVerdict,
     build_provider_registry,
 )
-from .url_parser import parse_url
+from .url_parser import parse_url, sanitize_url_for_logging, split_registered_domain
 
 log = logging.getLogger("analyzer")
-
-_REDIRECT_PARAMS = ("redirect", "redirect_url", "redirecturi", "url", "next", "returnurl")
-
-_ALLOWED_SUB_RX = re.compile(r"^(\*\.)?[a-z0-9.-]+$")
 
 
 def _load_trusted(org_id: int) -> list[database.sqlite3.Row]:
@@ -76,7 +77,11 @@ class AnalysisResult:
     classification: str = UNKNOWN
     risk_score: int = 0
     risk_level: str = "LOW"
+    confidence: float = 0.0
+    blocked: bool = False
     reasons: list[str] = field(default_factory=list)
+    explanation: list[str] = field(default_factory=list)
+    evidence: dict = field(default_factory=dict)
     signals: dict = field(default_factory=dict)
     matched_domain: Optional[str] = None
     trusted: bool = False
@@ -95,12 +100,17 @@ class AnalysisResult:
             "scheme": self.scheme,
             "port": self.port,
             "username": self.username,
-            "password": self.password,
+            "password": "",
+            "userinfo_present": bool(self.username or self.password),
             "tld": self.tld,
             "classification": self.classification,
             "risk_score": self.risk_score,
             "risk_level": self.risk_level,
+            "confidence": self.confidence,
+            "blocked": self.blocked,
             "reasons": self.reasons,
+            "explanation": self.explanation,
+            "evidence": self.evidence,
             "signals": self.signals,
             "matched_domain": self.matched_domain,
             "trusted": self.trusted,
@@ -108,12 +118,9 @@ class AnalysisResult:
             "details": self.details,
             "content_blocked": bool(self.signals.get("content_blocked")),
             "blocked_category": self.signals.get("blocked_category"),
-            "safe_to_visit": self.classification == SAFE and not self._caveat(),
+            "safe_to_visit": self.classification == SAFE,
         }
 
-    def _caveat(self) -> bool:
-        return bool(self.signals.get("untrusted_destination")) and \
-            self.classification == SAFE
 
 
 def _check_allowed_subdomain(subdomain: str, allowed_rules: str) -> bool:
@@ -154,7 +161,6 @@ class UrlAnalyzer:
             r["normalized_domain"]: r.get("allowed_subdomains", "") or ""
             for r in self.trusted_rows
         }
-        self.similarity = SimilarityEngine(self.trusted_domains)
         self.providers = providers
         # Policy-categorized entries (e.g. GAMBLING) are enforced in analyze()
         # and are NOT handed to the malware provider, so disabling the category
@@ -184,23 +190,37 @@ class UrlAnalyzer:
             t = row["normalized_domain"].rstrip(".")
             if host_s == t:
                 return row
-            if apex == t:
+            # A subdomain of a trusted apex is trusted only when an explicit
+            # allow-rule permits it.  This prevents trusted.com.attacker.com
+            # style ownership confusion from bypassing detection.
+            if apex == t and host_s.endswith("." + t):
                 allowed = row.get("allowed_subdomains", "") or ""
-                sub = host_s[: -(len(t) + 1)] if host_s.endswith("." + t) else ""
-                if sub and allowed and not _check_allowed_subdomain(sub, allowed):
-                    # Subdomains are restricted by an explicit allow-rule and
-                    # this one does not match it.
-                    return None
-                return row
+                sub = host_s[: -(len(t) + 1)]
+                if sub and allowed and _check_allowed_subdomain(sub, allowed):
+                    return row
         return None
 
     # Betting keywords - always GAMBLING even if not in known_threats table
     _BETTING_KEYWORDS = ("bet", "casino", "poker", "slot", "gamble", "lotto", "wager", "pawa", "sportpesa", "1xbet", "betway", "betpawa")
 
-    def _policy_category(self, host: str) -> Optional[str]:
+    @staticmethod
+    def _threat_intel_target(raw_url: str, host: str, password: str) -> str:
+        """Host-safe URL for TI lookups and provider payloads."""
+        if password and host:
+            return f"https://{host}"
+        if "@" in raw_url:
+            return sanitize_url_for_logging(raw_url)
+        return raw_url or (f"https://{host}" if host else "")
+
+    def _policy_category(self, host: str, registered: str) -> Optional[str]:
         h = (host or "").lower().rstrip(".")
+        registered = (registered or "").lower().rstrip(".")
         for bad, cat in self.policy_domains.items():
-            if h == bad or (len(bad) > 3 and h.endswith("." + bad)):
+            bad = bad.lower().rstrip(".")
+            bad_registered, _ = split_registered_domain(bad)
+            target = bad_registered or bad
+            # Compare registrable domains rather than using a bare suffix test.
+            if h == bad or (registered and registered == target):
                 return cat
         # Heuristic: any host containing betting keywords is GAMBLING - covers betpawa etc. even without DB entry
         if any(kw in h for kw in self._BETTING_KEYWORDS):
@@ -209,105 +229,29 @@ class UrlAnalyzer:
 
     # ---- public entry -----------------------------------------------------
     def analyze(self, url: str, source: str = "EMPLOYEE") -> AnalysisResult:
-        parsed = parse_url(url or "")
+        raw_url = (url or "").strip()
+        parsed = parse_url(raw_url)
         if not parsed.hostname:
             # Treat a bare domain string as an https URL for friendliness.
-            candidate = (url or "").strip().lower()
+            candidate = raw_url.lower()
             parsed = parse_url("https://" + candidate)
         host = parsed.ascii_host or ""
         registered = parsed.registered_domain or ""
         ascii_domain = normalization.to_ascii(parsed.hostname)
 
-        # exact trusted lookup
+        # Exact trusted lookup.  Ownership is always established from the
+        # registrable domain, including allowed-subdomain rules.
         matched = self._exact_trust_lookup(host, registered)
         trusted = matched is not None
-        punycode_flag = host.startswith("xn--") or normalization.to_ascii(
-            parsed.hostname
-        ).startswith("xn--")
 
-        signals: dict[str, Any] = {
-            "exact_match": trusted,
-            "trusted_domain": trusted,
-            "trusted_exact": trusted,
-            "matched_domain": matched["normalized_domain"] if matched else None,
-            "hostname": host,
-            "registered_domain": registered,
-        }
-
-        finding = None if trusted else self.similarity.best_finding(host or registered or url)
-
-        # ---- character / structural signals ----
-        if finding:
-            if finding.edit_distance <= 4 or finding.fold_match:
-                signals["edit_distance"] = finding.edit_distance
-                signals["matched_domain"] = finding.trusted_domain
-            if finding.fold_match:
-                signals["confusable_exact_match"] = True
-                signals["matched_domain"] = finding.trusted_domain
-                if signals.get("edit_distance", 99) > 2:
-                    signals["edit_distance"] = 2
-            if finding.char_ops:
-                signals["character_ops"] = list(dict.fromkeys(finding.char_ops))
-            if finding.keyword_hits:
-                signals["keyword"] = finding.keyword_hits
-            if finding.punycode or punycode_flag:
-                signals["punycode"] = True
-                unicode_form = normalization.to_unicode(host)
-                if unicode_form and unicode_form != host:
-                    from .homoglyph import mixed_script_warning
-                    warning = mixed_script_warning(unicode_form)
-                    if warning:
-                        signals["mixed_script"] = warning
-            if finding.mixed_script:
-                signals["mixed_script"] = finding.mixed_script
-            if finding.misleading_subdomain:
-                signals["brand_embedded"] = True
-                signals["matched_domain"] = finding.trusted_domain
-            if finding.brand_prefix:
-                signals["brand_prefix"] = True
-                signals["matched_domain"] = finding.trusted_domain
-            if finding.suffix_embedded:
-                signals["suffix_embedded"] = True
-                signals["matched_domain"] = finding.trusted_domain
-            if finding.same_tld is False:
-                signals["tld_changed"] = True
-            if finding.tld_confusion:
-                signals["tld_confusable"] = finding.tld_confusion
-            if finding.suspicious_tld:
-                signals["suspicious_tld"] = finding.suspicious_tld
-            # impersonation of a critical brand is weighted harder
-            if signals.get("matched_domain"):
-                for row in self.trusted_rows:
-                    if row["normalized_domain"] == signals["matched_domain"] \
-                            and row["is_critical"]:
-                        signals["critical_impersonation"] = True
-                        break
-
-        if parsed.username:
-            signals["userinfo_present"] = True
-        if parsed.scheme not in ("http", "https"):
-            signals["non_http_scheme"] = True
-        if parsed.is_ip:
-            signals["ip_host"] = True
-        if not trusted:
-            signals["untrusted_destination"] = True
-
-        # path-based brand deception: /company.com/ or /trusted-login/
-        if finding and finding.trusted_domain:
-            brand = finding.trusted_domain.split(".")[0]
-            if re.search(rf"(?i)(/|\b){re.escape(brand)}(\b|/)", parsed.path):
-                signals["brand_in_path"] = True
-
-        # redirect params
-        qk = [k.lower() for k in re.findall(r"([^&=]+)=", parsed.query)]
-        if any(k in _REDIRECT_PARAMS for k in qk):
-            signals["redirect_param"] = True
-
-        # ---- threat intelligence (only local by default) ----
+        # ---- threat intelligence first (only local by default) ----
+        ti_target = self._threat_intel_target(raw_url, host, parsed.password)
         ti_verdicts: list[ThreatIntelVerdict] = []
         for provider in self.providers:
+            if not ti_target:
+                break
             try:
-                verdict = provider.check(url or f"https://{host}")
+                verdict = provider.check(ti_target)
             except Exception as exc:
                 verdict = ThreatIntelVerdict(
                     provider=getattr(provider, "name", "unknown"),
@@ -316,32 +260,51 @@ class UrlAnalyzer:
                     error=str(exc)[:300],
                 )
             ti_verdicts.append(verdict)
-            if verdict.verdict == VERDICT_MALICIOUS:
-                signals["ti_malicious"] = True
-            if verdict.verdict == VERDICT_BENIGN:
-                signals["ti_benign"] = True
 
         thresholds = self.thresholds or database.Config.get_risk_thresholds(self.org_id)
-        scored = score_signals(signals, thresholds)
+        detection = build_detection_evidence(
+            parsed=parsed,
+            raw_url=raw_url,
+            trusted_rows=self.trusted_rows,
+            trusted_match=matched,
+            ti_verdicts=[v.to_dict() for v in ti_verdicts],
+        )
+        signals = detection.legacy_signals
+        report = correlate_evidence(detection.items, thresholds)
 
-        if scored.classification in (SAFE, SUSPICIOUS, MALICIOUS, UNKNOWN):
-            classification = scored.classification
+        # Verified trust is positive evidence.  Confirmed threat intelligence
+        # has already produced critical evidence and therefore overrides it.
+        ti_malicious = any(v.verdict == VERDICT_MALICIOUS for v in ti_verdicts)
+        ti_benign = bool(ti_verdicts) and all(
+            v.verdict == VERDICT_BENIGN for v in ti_verdicts
+        )
+        if trusted and not ti_malicious:
+            report.score = 0
+            report.classification = SAFE
+            report.risk_level = "LOW"
+            report.confidence = 0.95
+            report.explanation = ["Domain is an approved and trusted domain."]
+        elif ti_benign and report.score <= 0 and report.classification == UNKNOWN:
+            # A benign reputation finding is meaningful positive trust evidence.
+            report.classification = SAFE
+            report.risk_level = "LOW"
+            report.confidence = max(report.confidence, 0.90)
+
+        if report.classification in (SAFE, SUSPICIOUS, MALICIOUS, UNKNOWN, HIGH_RISK):
+            classification = report.classification
         else:
             classification = UNKNOWN
-
-        # If TI benign and not otherwise risky → safe
-        if signals.get("ti_benign") and scored.score <= 0:
-            classification = SAFE
 
         # ---- content-policy enforcement (gambling / adult / social…) ----
         # Applies to all destinations (even trusted — so a trusted betting
         # domain is still blocked when its category is enabled). Admins
         # control categories via /api/settings/content-policy and the
         # Blocked-sites → Content policy UI.
-        risk_level = scored.risk_level
-        risk_score = scored.score
+        risk_level = report.risk_level
+        risk_score = report.score
+        blocked = classification in (HIGH_RISK, MALICIOUS)
         policy_reason = None
-        policy_cat = self._policy_category(host)
+        policy_cat = self._policy_category(host, registered)
         # Trusted sites override content policy — user-added whitelist always wins
         if policy_cat and (policy_cat in self.blocked_categories or policy_cat == "GAMBLING") and not trusted:
             signals["content_blocked"] = True
@@ -349,51 +312,58 @@ class UrlAnalyzer:
             classification = MALICIOUS
             risk_score = 100
             risk_level = "CRITICAL"
+            blocked = True
             policy_reason = (
                 f"Blocked by organization policy — {policy_cat} "
                 "websites are not allowed"
             )
         if policy_reason:
-            scored.reasons = list(scored.reasons) + [policy_reason]
+            report.explanation = list(report.explanation) + [policy_reason]
 
         # ---- whitelist-only mode (admin lockdown) ----
-        # When enabled, allow genuine SAFE sites (not in a blocked
-        # content-policy category) but block everything else that is
-        # not in Trusted domains. This satisfies: "allow genuine URLs
-        # apart from social/betting/porn/illegal" while keeping the
-        # strict whitelist. Content-policy (social, gambling, adult,
-        # OTHER/illegal) is already enforced above for all domains,
-        # so those are blocked even if genuine.
-        # If you want *only* Trusted domains, add every genuine site
-        # you need to the Trusted list and keep this ON — non-trusted
-        # genuine will then still be allowed, which is the requested
-        # behavior. For full lockdown (only Trusted), change
-        # is_genuine to False below.
+        # This is an explicit administrator lockdown: block every non-trusted
+        # destination, including otherwise unknown-but-harmless sites.
+        # Institutional context is not an exemption here.
         whitelist_reason = None
         if not trusted and not policy_reason:
-            # .ac.ug academic sites are always allowed, even in whitelist mode
-            if host.lower().endswith(".ac.ug") or host.lower() == "ac.ug":
+            try:
+                if database.Config.get_whitelist_only(self.org_id):
+                    signals["whitelist_blocked"] = True
+                    signals["content_blocked"] = True
+                    signals["blocked_category"] = "WHITELIST"
+                    classification = MALICIOUS
+                    risk_score = 100
+                    risk_level = "CRITICAL"
+                    blocked = True
+                    whitelist_reason = (
+                        "Blocked by whitelist policy — only allowed sites can be visited. "
+                        "Add this site to your allowed list to visit it."
+                    )
+            except Exception:
                 pass
-            else:
-                try:
-                    if database.Config.get_whitelist_only(self.org_id):
-                        signals["whitelist_blocked"] = True
-                        signals["content_blocked"] = True
-                        signals["blocked_category"] = "WHITELIST"
-                        classification = MALICIOUS
-                        risk_score = 100
-                        risk_level = "CRITICAL"
-                        whitelist_reason = (
-                            "Blocked by whitelist policy — only allowed sites can be visited. "
-                            "Add this site to your allowed list to visit it."
-                        )
-                except Exception:
-                    pass
         if whitelist_reason:
-            scored.reasons = list(scored.reasons) + [whitelist_reason]
+            report.explanation = list(report.explanation) + [whitelist_reason]
+
+        if classification in (SUSPICIOUS, HIGH_RISK, MALICIOUS):
+            log.warning(
+                "suspicious_url url=%s registrable_domain=%s classification=%s "
+                "risk_score=%s confidence=%s strong=%s medium=%s weak=%s "
+                "threat_intel=%s matched=%s timestamp=%s",
+                sanitize_url_for_logging(raw_url),
+                registered or host or "unknown",
+                classification,
+                risk_score,
+                report.confidence,
+                report.as_dict()["strong"],
+                report.as_dict()["medium"],
+                report.as_dict()["weak"],
+                [v.provider for v in ti_verdicts if v.verdict == VERDICT_MALICIOUS],
+                detection.matched_domain,
+                database.utcnow_iso(),
+            )
 
         result = AnalysisResult(
-            url=url.strip(),
+            url=raw_url,
             hostname=parsed.hostname,
             registered_domain=registered,
             subdomain=parsed.subdomain,
@@ -403,14 +373,18 @@ class UrlAnalyzer:
             scheme=parsed.scheme,
             port=parsed.port,
             username=parsed.username,
-            password=parsed.password,
-            tld=registered.rsplit(".", 1)[-1] if "." in registered else "",
+            password="",
+            tld=parsed.tld,
             classification=classification,
             risk_score=risk_score,
             risk_level=risk_level,
-            reasons=scored.reasons,
+            confidence=report.confidence,
+            blocked=blocked,
+            reasons=list(report.explanation),
+            explanation=list(report.explanation),
+            evidence=report.as_dict(),
             signals=signals,
-            matched_domain=scored.matched_domain,
+            matched_domain=detection.matched_domain,
             trusted=trusted,
             ti=[v.to_dict() for v in ti_verdicts],
             details=parsed.as_dict(),
@@ -422,6 +396,9 @@ class UrlAnalyzer:
 
     def _persist(self, result: AnalysisResult, ti_verdicts: list[ThreatIntelVerdict],
                  source: str) -> int:
+        stored_url = sanitize_url_for_logging(result.url)
+        stored_details = dict(result.details or {})
+        stored_details["raw"] = sanitize_url_for_logging(str(stored_details.get("raw", "")))
         scan_id = database.execute(
             """
             INSERT INTO url_scans
@@ -433,7 +410,7 @@ class UrlAnalyzer:
             (
                 self.org_id,
                 self.user_id,
-                result.url[:4000],
+                stored_url[:4000],
                 result.hostname[:1024],
                 result.registered_domain[:1023],
                 result.punycode_domain[:1023],
@@ -442,12 +419,14 @@ class UrlAnalyzer:
                 result.matched_domain,
                 json.dumps(result.signals),
                 json.dumps(result.reasons),
-                json.dumps(result.details),
+                json.dumps(stored_details),
                 source,
                 database.utcnow_iso(),
             ),
         )
         for v in ti_verdicts:
+            payload = v.to_dict()
+            payload["raw"] = {}
             database.execute(
                 """
                 INSERT INTO threat_intel_results
@@ -459,7 +438,7 @@ class UrlAnalyzer:
                     v.provider,
                     v.verdict,
                     v.score,
-                    json.dumps(v.to_dict()),
+                    json.dumps(payload),
                     database.utcnow_iso(),
                 ),
             )

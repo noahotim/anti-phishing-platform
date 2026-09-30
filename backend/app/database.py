@@ -278,6 +278,37 @@ def _migrate(conn: sqlite3.Connection) -> None:
         conn.execute(
             "ALTER TABLE known_threats ADD COLUMN category TEXT NOT NULL DEFAULT ''"
         )
+    # Align untouched legacy risk defaults with the evidence-based bands:
+    # UNKNOWN ≤20, SUSPICIOUS ≤59, HIGH_RISK ≤79, MALICIOUS above that.
+    for row in conn.execute(
+        "SELECT org_id, value FROM system_settings WHERE key='risk_thresholds'"
+    ).fetchall():
+        try:
+            values = json.loads(row["value"])
+            legacy = (
+                int(values.get("low", -1)) == 20
+                and int(values.get("moderate", -1)) == 50
+                and int(values.get("high", -1)) == 75
+            )
+        except (ValueError, TypeError, AttributeError):
+            legacy = False
+        if legacy:
+            conn.execute(
+                "UPDATE system_settings SET value=? WHERE org_id=? AND key='risk_thresholds'",
+                ('{"low":20,"moderate":59,"high":79}', row["org_id"]),
+            )
+    # Preserve seeded Google/Microsoft subdomains after ownership checks were
+    # tightened.  Only rows that still have the original empty allow-rule are
+    # changed; administrator-customized rules are left alone.
+    for domain in ("google.com", "microsoft.com"):
+        conn.execute(
+            """
+            UPDATE trusted_domains
+            SET allowed_subdomains=?
+            WHERE normalized_domain=? AND allowed_subdomains=''
+            """,
+            (f"*.{domain}", domain),
+        )
 
 
 class Config:

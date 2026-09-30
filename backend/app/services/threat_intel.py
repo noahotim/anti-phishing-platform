@@ -69,12 +69,20 @@ class LocalThreatIntelProvider(ThreatIntelligenceProvider):
         self.known_bad = {d.lower().rstrip(".") for d in known_bad_domains}
 
     def check(self, url: str) -> ThreatIntelVerdict:
-        from .url_parser import parse_url
+        from .url_parser import parse_url, split_registered_domain
 
         parsed = parse_url(url)
         host = parsed.ascii_host
+        registered = parsed.registered_domain or host
         for bad in self.known_bad:
-            if bad and (host == bad or (len(bad) > 3 and host.endswith("." + bad))):
+            if not bad:
+                continue
+            bad_registered, _ = split_registered_domain(bad)
+            target = bad_registered or bad
+            # Ownership is compared at the registrable-domain level.  Subdomains
+            # of a blocked registrable domain still match, while a different
+            # registrable domain that merely ends with the blocked text does not.
+            if host == bad or (registered and registered == target):
                 return ThreatIntelVerdict(
                     provider=self.name,
                     verdict=VERDICT_MALICIOUS,

@@ -78,11 +78,11 @@ class Settings:
 
     # --- risk thresholds (0-100, configurable) -----------------------------
     low_risk_threshold: int = _int("LOW_RISK_THRESHOLD", 20)
-    moderate_risk_threshold: int = _int("MODERATE_RISK_THRESHOLD", 50)
-    high_risk_threshold: int = _int("HIGH_RISK_THRESHOLD", 75)
-    # boundaries above map classification: <=low SAFE, <=moderate SUSPICIOUS,
-    # <=high MALICIOUS, above MALICIOUS(critical). "UNKNOWN" is a separate,
-    # signal-driven classification (see risk_scorer).
+    moderate_risk_threshold: int = _int("MODERATE_RISK_THRESHOLD", 59)
+    high_risk_threshold: int = _int("HIGH_RISK_THRESHOLD", 79)
+    # Boundaries above map classification: <=low UNKNOWN, <=moderate SUSPICIOUS,
+    # <=high HIGH_RISK, above MALICIOUS(critical).  SAFE requires exact trusted
+    # membership; suspicion also requires the evidence gate (see risk_scorer).
 
     # --- threat intelligence ----------------------------------------------
     enable_external_ti: bool = _bool("ENABLE_EXTERNAL_TI", False)

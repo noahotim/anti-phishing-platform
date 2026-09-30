@@ -1,56 +1,49 @@
 """Risk scoring and classification.
 
-Turns raw signals into a single 0–100 score and one of SAFE / SUSPICIOUS /
-MALICIOUS / UNKNOWN.  Classification is a monotonic function of the score band
-(defaults below), which keeps the numbers honest on the warning page.
+Raw detection signals are first converted into structured evidence.  Weak
+evidence can add a small amount of risk, but it cannot satisfy the evidence
+gate: suspicion needs a strong signal or at least two independent medium
+signals.  Related lexical findings share one capped group.
 
-  SAFE        0–20   LOW
-  SUSPICIOUS 21–50   MODERATE
-  MALICIOUS  51–75   HIGH
-  MALICIOUS  76–100  CRITICAL
-  UNKNOWN    0       no evidence at all (not trusted, no signals, no intel)
+The default bands are:
 
-Risk thresholds are stored per-organization and configurable by admins.
+  SAFE        score 0 and an exact trusted match
+  UNKNOWN     0–20
+  SUSPICIOUS  21–59, subject to the evidence gate
+  HIGH_RISK   60–79
+  MALICIOUS   80–100
+
+``low``, ``moderate``, and ``high`` remain configurable as the UNKNOWN,
+SUSPICIOUS, and HIGH_RISK ceilings.  Risk thresholds are stored
+per-organization and configurable by admins.
 """
 from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-SAFE = "SAFE"
-SUSPICIOUS = "SUSPICIOUS"
-MALICIOUS = "MALICIOUS"
-UNKNOWN = "UNKNOWN"
+from .evidence import (
+    CONTEXTUAL,
+    CRITICAL,
+    HIGH_RISK,
+    LOW,
+    MALICIOUS,
+    MEDIUM,
+    MODERATE,
+    HIGH as HIGH_LEVEL_NAME,
+    SAFE,
+    STRONG,
+    SUSPICIOUS,
+    UNKNOWN,
+    EvidenceItem,
+    EvidenceReport,
+    correlate_evidence,
+)
 
-LOW = "LOW"
-MODERATE = "MODERATE"
-HIGH = "HIGH"
-CRITICAL = "CRITICAL"
+LOW_LEVEL = LOW
+MODERATE_LEVEL = MODERATE
+HIGH_LEVEL = HIGH_LEVEL_NAME
+CRITICAL_LEVEL = "CRITICAL"
 
-_WEIGHTS = {
-    "untrusted_destination": 5,       # baseline for not being approved — lower to avoid genuine flagged as suspicious
-    "confusable_exact_match": 55,     # registered domain is a visual twin
-    "edit_dist_1": 46,
-    "edit_dist_2": 30,
-    "edit_dist_3": 20,
-    "edit_dist_4": 12,
-    "tld_changed": 5,
-    "tld_confusable": 8,
-    "suspicious_tld": 8,
-    "punycode": 12,
-    "mixed_script": 14,
-    "keyword": 5,
-    "brand_embedded": 48,
-    "brand_prefix": 26,
-    "suffix_embedded": 24,
-    "critical_impersonation": 15,
-    "userinfo_present": 26,
-    "non_http_scheme": 5,
-    "ip_host": 26,
-    "ti_malicious": 55,
-    "redirect_param": 5,
-    "brand_in_path": 8,
-    "weak_tld": 4,
-}
 
 
 @dataclass
@@ -61,153 +54,314 @@ class ScoreResult:
     reasons: list[str] = field(default_factory=list)
     matched_domain: str | None = None
     signals: dict = field(default_factory=dict)
+    evidence: dict = field(default_factory=dict)
+    confidence: float = 0.0
+    explanation: list[str] = field(default_factory=list)
+    strong_signals: int = 0
+    medium_signals: int = 0
 
 
 def classify_raw(
-    score: int, thresholds: dict[str, int], trusted_exact: bool,
+    score: int,
+    thresholds: dict[str, int],
+    trusted_exact: bool,
     has_any_signal: bool,
+    *,
+    strong: bool = False,
+    medium_count: int = 0,
 ) -> tuple[str, str]:
-    """Map score → (classification, risk_level).
+    """Map a score plus the evidence gate to a verdict.
 
-    SAFE is reserved for exact approved matches and intel-verified benign
-    domains.  An untrusted domain is never labelled SAFE: with zero evidence it
-    is UNKNOWN, and with any suspicious signal it is SUSPICIOUS even when the
-    numeric score stays low — safety first for employees.
+    ``has_any_signal`` is retained for backward compatibility.  Weak signals
+    alone no longer create suspicion: ``strong`` or at least two independent
+    medium findings are required before a score above the UNKNOWN ceiling can
+    become SUSPICIOUS.
     """
-    if trusted_exact and score <= thresholds["low"]:
+    low = int(thresholds.get("low", 20))
+    suspicious_ceiling = int(thresholds.get("moderate", 59))
+    high_ceiling = int(thresholds.get("high", 79))
+    gated = bool(strong) or int(medium_count) >= 2
+
+    if trusted_exact and score <= low:
         return SAFE, LOW
-    if score >= thresholds["high"] + 1:
-        return MALICIOUS, CRITICAL if score >= 76 else HIGH
-    if score > thresholds["moderate"]:
-        return MALICIOUS, HIGH
-    if score > thresholds["low"]:
+    if score <= low:
+        return (SUSPICIOUS, MODERATE) if gated else (UNKNOWN, LOW)
+    if score <= suspicious_ceiling:
         return SUSPICIOUS, MODERATE
-    if score > 0:
-        return (SUSPICIOUS, MODERATE) if has_any_signal else (UNKNOWN, LOW)
-    return UNKNOWN, LOW
+    if score <= high_ceiling:
+        return HIGH_RISK, HIGH_LEVEL_NAME
+    return MALICIOUS, CRITICAL_LEVEL
+
+
+def _legacy_items(signals: dict) -> tuple[list[EvidenceItem], str | None]:
+    """Convert the historical signal dictionary into structured evidence."""
+    flag = signals.get
+    items: list[EvidenceItem] = []
+    matched = flag("matched_domain")
+
+    if flag("ti_malicious"):
+        items.append(
+            EvidenceItem(
+                name="known_malicious",
+                category=CRITICAL,
+                weight=100,
+                explanation="Confirmed malicious by threat intelligence.",
+            )
+        )
+    if not flag("ti_benign") and not flag("trusted_exact"):
+        items.append(
+            EvidenceItem(
+                name="unknown_domain",
+                category="weak",
+                weight=5,
+                explanation="The domain is not in the trusted database.",
+            )
+        )
+    if flag("confusable_exact_match"):
+        items.append(
+            EvidenceItem(
+                name="confirmed_homograph",
+                category=STRONG,
+                weight=45,
+                explanation=(
+                    f"Domain visually matches approved domain \"{matched}\" "
+                    "(confusable homoglyphs)."
+                ),
+                matched_domain=matched,
+            )
+        )
+    edit_distance = int(flag("edit_distance", 0) or 0)
+    character_ops = [str(op) for op in (flag("character_ops", []) or [])][:4]
+    if 0 < edit_distance <= 2:
+        explanation = (
+            f"Domain differs by {edit_distance} character operation(s) from "
+            f"approved \"{matched}\"."
+        )
+        if character_ops:
+            explanation += " Character operations: " + "; ".join(character_ops) + "."
+        items.append(
+            EvidenceItem(
+                name="very_close_typosquat",
+                category=STRONG,
+                weight=40,
+                explanation=explanation,
+                matched_domain=matched,
+            )
+        )
+    elif 3 <= edit_distance <= 4:
+        items.append(
+            EvidenceItem(
+                name="brand_similarity",
+                category=MEDIUM,
+                weight=25,
+                explanation=(
+                    f"Domain is lexically similar to approved \"{matched}\"."
+                ),
+                matched_domain=matched,
+            )
+        )
+    if flag("punycode"):
+        if flag("confusable_exact_match") or (matched and 0 < edit_distance <= 2):
+            items.append(
+                EvidenceItem(
+                    name="punycode_impersonation",
+                    category=STRONG,
+                    weight=40,
+                    explanation="Punycode encoding accompanies brand resemblance.",
+                    matched_domain=matched,
+                )
+            )
+        else:
+            items.append(
+                EvidenceItem(
+                    name="punycode_marker",
+                    category=CONTEXTUAL,
+                    explanation="Domain uses IDN/Punycode encoding.",
+                    matched_domain=matched,
+                )
+            )
+    if flag("mixed_script"):
+        if flag("confusable_exact_match") or (matched and 0 < edit_distance <= 2):
+            items.append(
+                EvidenceItem(
+                    name="mixed_script",
+                    category=MEDIUM,
+                    weight=30,
+                    explanation=f"Mixed Unicode script detected ({flag('mixed_script')}).",
+                    matched_domain=matched,
+                )
+            )
+        else:
+            items.append(
+                EvidenceItem(
+                    name="mixed_script_marker",
+                    category=CONTEXTUAL,
+                    explanation=f"Mixed Unicode script note: {flag('mixed_script')}.",
+                )
+            )
+    keywords = flag("keyword", [])
+    if keywords:
+        items.append(
+            EvidenceItem(
+                name="login_keyword",
+                category="weak",
+                weight=3,
+                explanation=f"Keyword(s) in domain: {', '.join(keywords)}.",
+                matched_domain=matched,
+            )
+        )
+    if flag("brand_prefix"):
+        items.append(
+            EvidenceItem(
+                name="brand_prefix",
+                category=MEDIUM,
+                weight=20,
+                explanation=f"Approved brand \"{matched}\" is used with a prefix.",
+                matched_domain=matched,
+            )
+        )
+    if flag("brand_embedded"):
+        items.append(
+            EvidenceItem(
+                name="brand_embedded",
+                category=MEDIUM,
+                weight=20,
+                explanation="Approved brand name is embedded without a boundary.",
+                matched_domain=matched,
+            )
+        )
+    if flag("suffix_embedded"):
+        items.append(
+            EvidenceItem(
+                name="brand_embedded",
+                category=MEDIUM,
+                weight=20,
+                explanation="Approved domain appears as a suffix of this hostname.",
+                matched_domain=matched,
+            )
+        )
+    if flag("critical_impersonation"):
+        items.append(
+            EvidenceItem(
+                name="critical_brand_match",
+                category=MEDIUM,
+                weight=15,
+                explanation=f"Impersonates a brand marked CRITICAL: \"{matched}\".",
+                matched_domain=matched,
+            )
+        )
+    if flag("userinfo_present"):
+        items.append(
+            EvidenceItem(
+                name="credential_userinfo",
+                category=STRONG,
+                weight=30,
+                explanation="URL includes username/password components.",
+            )
+        )
+    if flag("non_http_scheme"):
+        items.append(
+            EvidenceItem(
+                name="non_http_scheme",
+                category="weak",
+                weight=3,
+                explanation="Protocol is not http/https.",
+            )
+        )
+    if flag("ip_host"):
+        items.append(
+            EvidenceItem(
+                name="ip_host",
+                category=CONTEXTUAL,
+                explanation="Hostname is an IP address or local hostname.",
+            )
+        )
+    if flag("tld_changed") or flag("tld_confusable"):
+        items.append(
+            EvidenceItem(
+                name="tld_context",
+                category=CONTEXTUAL,
+                explanation="Any TLD difference from another domain is normal on its own.",
+                matched_domain=matched,
+            )
+        )
+    if flag("suspicious_tld"):
+        items.append(
+            EvidenceItem(
+                name="suspicious_tld",
+                category="weak",
+                weight=5,
+                explanation=f"Domain uses frequently-abused TLD \".{flag('suspicious_tld')}\".",
+            )
+        )
+    if flag("redirect_param"):
+        items.append(
+            EvidenceItem(
+                name="redirect_parameter",
+                category="weak",
+                weight=3,
+                explanation="URL contains a redirect/open-redirect parameter.",
+            )
+        )
+    if flag("brand_in_path"):
+        items.append(
+            EvidenceItem(
+                name="brand_in_path",
+                category=MEDIUM,
+                weight=10,
+                explanation="Approved brand name appears inside the URL path.",
+                matched_domain=matched,
+            )
+        )
+    return items, matched
 
 
 def score_signals(signals: dict, thresholds: dict[str, int] | None = None) -> ScoreResult:
-    """Compute a ScoreResult from a signals dict produced by the analyzer."""
-    total = 0
-    reasons: list[str] = []
-    weight = _WEIGHTS
-    flag = signals.get
-
-    def add(key: str, reason: str, cap: int = 100, times: int = 1) -> None:
-        nonlocal total
-        w = weight.get(key, 0)
-        for _ in range(times):
-            total += w
-        total = min(cap, total)
-        if reason:
-            reasons.append(reason)
-
-    trusted_exact = bool(flag("trusted_exact"))
-    has_any = bool(
-        flag("confusable_exact_match") == 1.0
-        or flag("edit_distance", 0) > 0
-        or flag("punycode")
-        or flag("mixed_script")
-        or flag("keyword", [])
-        or flag("suspicious_tld")
-        or flag("brand_embedded")
-        or flag("brand_prefix")
-        or flag("suffix_embedded")
-        or flag("userinfo_present")
-        or flag("ti_malicious")
-        or flag("non_http_scheme")
-        or flag("ip_host")
-        or flag("tld_changed")
-        or flag("redirect_param")
-    )
-
+    """Compute a ScoreResult from historical signals through the new gate."""
+    thresholds = thresholds or {}
+    trusted_exact = bool(signals.get("trusted_exact"))
     if trusted_exact:
-        total = 0
         return ScoreResult(
             score=0,
             classification=SAFE,
             risk_level=LOW,
             reasons=["Domain is an approved and trusted domain"],
-            matched_domain=flag("matched_domain"),
+            matched_domain=signals.get("matched_domain"),
             signals=signals,
+            evidence={
+                "critical": [],
+                "strong": [],
+                "medium": [],
+                "weak": [],
+                "contextual": ["trusted_domain"],
+            },
+            confidence=0.95,
+            explanation=["Domain is an approved and trusted domain."],
         )
 
-    if flag("ti_malicious"):
-        add("ti_malicious", "Confirmed malicious by threat intelligence", times=2)
-
-    if not flag("ti_benign") and not trusted_exact:
-        add("untrusted_destination", "Destination domain is not an approved domain")
-        reasons[-1] = "Destination domain is not an approved domain"
-
-    if flag("confusable_exact_match"):
-        add(
-            "confusable_exact_match",
-            f"Domain visually matches approved domain "
-            f"\"{flag('matched_domain')}\" (confusable homoglyphs)",
-        )
-
-    ed = flag("edit_distance", 0)
-    trusted_label = flag("matched_domain")
-    if 0 < ed <= 1:
-        key = "edit_dist_1"
-        add(key, f"Domain differs by {ed} character op(s) from approved \"{trusted_label}\"")
-        if flag("character_ops"):
-            for op in flag("character_ops")[:4]:
-                reasons.append(f"- {op}")
-    elif ed == 2:
-        add("edit_dist_2", f"Domain differs by two characters from \"{trusted_label}\"")
-    elif ed == 3:
-        add("edit_dist_3", f"Domain differs by three characters from \"{trusted_label}\"")
-    elif ed == 4:
-        add("edit_dist_4", f"Domain differs by four characters from \"{trusted_label}\"")
-
-    if flag("punycode"):
-        add("punycode", "Domain uses IDN/Punycode encoding")
-    if flag("mixed_script"):
-        add("mixed_script", f"Mixed Unicode script detected ({flag('mixed_script')})")
-    kws = flag("keyword", [])
-    if kws:
-        add("keyword", f"Suspicious keyword(s) in domain: {', '.join(kws)}",
-            times=min(2, len(kws)))
-
-    if flag("brand_embedded"):
-        add("brand_embedded", "Approved brand name embedded as subdomain or prefix")
-    if flag("brand_prefix"):
-        add("brand_prefix",
-            f"Approved brand \"{trusted_label}\" used with a look-alike prefix")
-    if flag("suffix_embedded"):
-        add("suffix_embedded", "Approved domain appears as a suffix of this hostname")
-    if flag("critical_impersonation"):
-        add("critical_impersonation",
-            f"Impersonates a brand marked CRITICAL: \"{trusted_label}\"")
-
-    if flag("userinfo_present"):
-        add("userinfo_present", "URL includes username/password components")
-    if flag("non_http_scheme"):
-        add("non_http_scheme", "Protocol is not http/https")
-    if flag("ip_host"):
-        add("ip_host", "Hostname is an IP address or local hostname")
-    if flag("tld_changed") and not trusted_exact:
-        add("tld_changed", "Top-level domain differs from approved domain")
-    if flag("tld_confusable"):
-        add("tld_confusable", flag("tld_confusable"))
-    if flag("suspicious_tld"):
-        add("suspicious_tld", f"Domain uses frequently-abused TLD \".{flag('suspicious_tld')}\"")
-    if flag("redirect_param"):
-        add("redirect_param", "URL contains a redirect/open-redirect parameter")
-    if flag("brand_in_path"):
-        add("brand_in_path", "Approved brand name appears inside the URL path")
-
-    total = min(100, total)
-    classification, risk_level = classify_raw(
-        total, thresholds or {}, trusted_exact, has_any
+    items, matched = _legacy_items(signals or {})
+    report: EvidenceReport = correlate_evidence(items, thresholds)
+    classification, _ = classify_raw(
+        report.score,
+        thresholds,
+        trusted_exact=False,
+        has_any_signal=bool(items),
+        strong=report.strong_signals > 0,
+        medium_count=report.medium_signals,
     )
+    # The report already applies the same gate; classification is copied here
+    # so the legacy API stays consistent with the new engine.
+    classification = report.classification
     return ScoreResult(
-        score=total,
+        score=report.score,
         classification=classification,
-        risk_level=risk_level,
-        reasons=reasons,
-        matched_domain=flag("matched_domain"),
+        risk_level=report.risk_level,
+        reasons=list(report.explanation),
+        matched_domain=matched,
         signals=signals,
+        evidence=report.as_dict(),
+        confidence=report.confidence,
+        explanation=list(report.explanation),
+        strong_signals=report.strong_signals,
+        medium_signals=report.medium_signals,
     )

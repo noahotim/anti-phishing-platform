@@ -275,16 +275,17 @@ deterministic pipeline (no content is ever fetched — the target server is
 <h3>6.3 Classification &amp; thresholds</h3>
 <table>
   <tr><th>Condition (risk score)</th><th>Verdict</th><th>Suggestion</th></tr>
-  <tr><td>&le; low threshold</td><td><span class="badge b-safe">SAFE</span></td><td>Can visit (when no caveat)</td></tr>
-  <tr><td>&le; moderate threshold</td><td><span class="badge b-susp">SUSPICIOUS</span></td><td>Warn before visiting</td></tr>
-  <tr><td>&le; high threshold</td><td><span class="badge b-mal">MALICIOUS</span></td><td>Block / report</td></tr>
-  <tr><td>&gt; high (critical) or known-threat hit or policy block</td><td><span class="badge b-mal">MALICIOUS</span> (score 100)</td><td>Block / report</td></tr>
-  <tr><td>Signal-driven anomaly</td><td><span class="badge b-unk">UNKNOWN</span></td><td>Needs human review</td></tr>
+  <tr><td>Exact trusted match</td><td><span class="badge b-safe">SAFE</span></td><td>Can visit</td></tr>
+  <tr><td>0&ndash;20</td><td><span class="badge b-unk">UNKNOWN</span></td><td>Allow; needs stronger evidence before warning</td></tr>
+  <tr><td>21&ndash;59, with a strong signal or at least two medium signals</td><td><span class="badge b-susp">SUSPICIOUS</span></td><td>Warn before visiting</td></tr>
+  <tr><td>60&ndash;79, with a strong signal or at least two medium signals</td><td><span class="badge b-mal">HIGH_RISK</span></td><td>Block / report</td></tr>
+  <tr><td>80&ndash;100, known-threat hit, or policy block</td><td><span class="badge b-mal">MALICIOUS</span> (score 100)</td><td>Block / report</td></tr>
+  <tr><td>No reputation, trust, impersonation, or attack evidence</td><td><span class="badge b-unk">UNKNOWN</span></td><td>Needs human review</td></tr>
 </table>
-<p>Threshold defaults: <code>LOW_RISK_THRESHOLD=20</code>, <code>MODERATE_RISK_THRESHOLD=50</code>,
-<code>HIGH_RISK_THRESHOLD=75</code>. They are <b>editable per organisation</b> from Settings
-(must satisfy low &lt; moderate &lt; high). The “unapproved destination is never SAFE”
-rule is safety-first by design.</p>
+<p>Threshold defaults: <code>LOW_RISK_THRESHOLD=20</code>, <code>MODERATE_RISK_THRESHOLD=59</code>,
+<code>HIGH_RISK_THRESHOLD=79</code>. They are <b>editable per organisation</b> from Settings
+(must satisfy low &lt; moderate &lt; high). Unknown is not suspicious by itself:
+weak signals cannot satisfy the evidence gate.</p>
 
 <!-- ==================== 7 ==================== -->
 <h2 id="s7" class="pagebreak">7&nbsp;&nbsp;Threat intelligence</h2>
@@ -473,8 +474,15 @@ Representative actions:</p>
 <h3>Analysis result payload</h3>
 <pre><code>{
   "id": 42, "url": "https://examp1e.com/login", "ascii_domain": "examp1e.com",
-  "classification": "MALICIOUS", "risk_score": 63, "risk_level": "HIGH",
-  "reasons": [...], "signals": {...},
+  "classification": "HIGH_RISK", "risk_score": 65, "risk_level": "HIGH",
+  "confidence": 0.88, "blocked": true,
+  "reasons": [...], "explanation": [...],
+  "evidence": {
+    "critical": [], "strong": ["confirmed_homograph"],
+    "medium": ["credential_path_with_suspicious_domain"],
+    "weak": ["not_in_trusted_database"], "contextual": ["secure_scheme"]
+  },
+  "signals": {...},
   "content_blocked": true, "blocked_category": "GAMBLING",
   "matched_domain": "example.com", "trusted": false,
   "threat_intel": [...], "safe_to_visit": false
@@ -620,7 +628,7 @@ The browser guard extension talks to the same origin.</p>
   <tr><td><code>ANALYZE_RATE_LIMIT</code></td><td>30/minute</td><td>Analysis bucket.</td></tr>
   <tr><td><code>AUTH_RATE_LIMIT</code></td><td>10/minute</td><td>Auth bucket.</td></tr>
   <tr><td><code>GENERIC_RATE_LIMIT</code></td><td>120/minute</td><td>Default bucket.</td></tr>
-  <tr><td><code>LOW/MODERATE/HIGH_RISK_THRESHOLD</code></td><td>20 / 50 / 75</td><td>Classification bands (editable per org).</td></tr>
+  <tr><td><code>LOW/MODERATE/HIGH_RISK_THRESHOLD</code></td><td>20 / 59 / 79</td><td>Classification bands (editable per org).</td></tr>
   <tr><td><code>ENABLE_EXTERNAL_TI</code></td><td>false</td><td>Keyed per-scan providers.</td></tr>
   <tr><td><code>VIRUSTOTAL_API_KEY</code> / <code>GOOGLE_SAFEBROWSING_API_KEY</code></td><td>—</td><td>Provider API keys.</td></tr>
   <tr><td><code>TI_FETCH_TIMEOUT_S</code></td><td>5</td><td>Outbound TI timeout.</td></tr>

@@ -44,7 +44,7 @@ def statistics(
 
     blocked = database.fetchone(
         "SELECT COUNT(*) c FROM url_scans WHERE org_id=? AND created_at>=? "
-        "AND classification IN ('MALICIOUS','SUSPICIOUS')",
+        "AND classification IN ('MALICIOUS','HIGH_RISK','SUSPICIOUS')",
         (org_id, since),
     )["c"]
 
@@ -53,7 +53,7 @@ def statistics(
         """
         SELECT COALESCE(matched_domain, 'none') AS domain, COUNT(*) c
         FROM url_scans
-        WHERE org_id=? AND created_at>=? AND classification IN ('MALICIOUS','SUSPICIOUS')
+        WHERE org_id=? AND created_at>=? AND classification IN ('MALICIOUS','HIGH_RISK','SUSPICIOUS')
         GROUP BY matched_domain ORDER BY c DESC LIMIT 10
         """,
         (org_id, since),
@@ -61,7 +61,7 @@ def statistics(
 
     # risk score distribution buckets
     dist = []
-    buckets = [(0, 20, "0-20"), (21, 50, "21-50"), (51, 75, "51-75"), (76, 100, "76-100")]
+    buckets = [(0, 20, "0-20"), (21, 59, "21-59"), (60, 79, "60-79"), (80, 100, "80-100")]
     for lo, hi, label in buckets:
         c = database.fetchone(
             "SELECT COUNT(*) c FROM url_scans WHERE org_id=? AND created_at>=? "
@@ -110,7 +110,7 @@ def statistics(
         row = database.fetchone(
             """
             SELECT COUNT(*) c,
-                   SUM(CASE WHEN classification IN ('MALICIOUS','SUSPICIOUS') THEN 1 ELSE 0 END) bad
+                   SUM(CASE WHEN classification IN ('MALICIOUS','HIGH_RISK','SUSPICIOUS') THEN 1 ELSE 0 END) bad
             FROM url_scans WHERE org_id=? AND substr(created_at,1,10)=?
             """,
             (org_id, iso),
@@ -126,7 +126,8 @@ def statistics(
         "total_scans": total,
         "safe": counts.get("SAFE", 0),
         "suspicious": counts.get("SUSPICIOUS", 0),
-        "malicious": counts.get("MALICIOUS", 0),
+        "malicious": counts.get("MALICIOUS", 0) + counts.get("HIGH_RISK", 0),
+        "high_risk": counts.get("HIGH_RISK", 0),
         "unknown": counts.get("UNKNOWN", 0),
         "blocked": blocked,
         "top_impersonated": [
@@ -171,7 +172,8 @@ def live_blocks(
         scans = database.fetchall(
             """
             SELECT id, hostname as host, url, '' as category, classification as label, 'site' as type, '' as user_agent, '' as ip, created_at
-            FROM url_scans WHERE org_id=? AND classification='MALICIOUS' ORDER BY id DESC LIMIT ?
+             FROM url_scans WHERE org_id=? AND classification IN ('MALICIOUS','HIGH_RISK') ORDER BY id DESC LIMIT ?
+
             """,
             (org_id, limit),
         )
