@@ -54,7 +54,7 @@ BOTIMPHISHGUARD — automatic URL guard
 **Short description (max 150 characters):**
 ```
 Blocks phishing, malware, gambling and scam sites the moment you click them. Also blocks ads and
-skips YouTube ads.
+adds one-click YouTube download buttons.
 ```
 
 **Category:** Productivity
@@ -71,8 +71,8 @@ WHAT IT BLOCKS
 - Adult and other categories you control from your own admin dashboard
 
 WHAT ELSE IT DOES
-- Blocks advertising on every site you visit
-- Skips YouTube ads and gives the video straight back to you with no waiting and no buffering
+- Blocks advertising on other sites you visit, while staying entirely out of the way of YouTube so
+  videos always play normally
 - Adds one-click Download Video and Download Audio buttons under YouTube videos, with quality
   choices, so the file saves straight to your computer
 - Shows a live feed of everything it has blocked, so you can see what it caught
@@ -98,15 +98,15 @@ https://phishguard-8vri.onrender.com/app/privacy.html
 This extension checks the address of each page the user tries to open against a threat
 classification server and blocks the navigation, showing a warning screen, when the address is
 classified as phishing, malware, gambling, adult or otherwise harmful. It also hides advertisement
-elements and skips YouTube advertisements so the video continues without interruption, and offers
-a download button for the YouTube video the user is watching.
+elements on general websites, deliberately takes no action on YouTube so that video playback is
+never disrupted, and offers a download button for the YouTube video the user is watching.
 ```
 
 **Why does the extension need `<all_urls>` host permission?**
 ```
-Every page must be checked before it loads, and every ad element must be hidden, which requires
-matching all URLs. The extension only reads the address of the page being opened, never its
-contents.
+Every page must be checked before it loads, and advertisement elements must be hidden, which
+requires matching all URLs. The extension only reads the address of the page being opened, never
+its contents.
 ```
 
 **Why `webNavigation`?**
@@ -159,9 +159,11 @@ Worth knowing before you submit, because these are the questions you are most li
   code does and that is a rejection risk.
 - **The extension contacts a server you own.** That is permitted, but every URL the extension talks
   to must be disclosed in the privacy answers. We have covered the URL and verdict.
-- **"Blocks ads on all sites" makes some reviewers check for the universal ad blocker claim.** The
-  declaration that you do not block content behind a paywall, and do not replace page content, is
-  accurate here and worth confirming.
+- **We no longer skip or hide YouTube ads.** Skipping YouTube's in-stream ads takes income from
+  creators and violates YouTube's terms, and an earlier version interfered with video playback
+  badly enough that YouTube refused to play videos. The YouTube ad-skipping script has been
+  removed and the extension now stays out of the way on YouTube entirely, keeping only the
+  download buttons. Do not re-add it: the listing text above has been updated to match.
 - **Review normally takes a few days**, sometimes longer, and the unlisted listing stays hidden
   until it passes.
 - If it is rejected, the dashboard email usually names the exact policy. Send me the text and I

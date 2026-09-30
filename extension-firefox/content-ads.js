@@ -3,8 +3,19 @@
 // Excludes WhatsApp and other messaging apps to avoid hiding messages.
 (function(){
   "use strict";
-  // Never run on WhatsApp — its messages were being hidden as "ads"
-  if (location.hostname.includes("whatsapp.com") || location.hostname.includes("web.whatsapp")) return;
+  // Sites we must never touch: muting them breaks real content or messaging.
+  // Exact host / true-subdomain matching only, so "evil-youtube.com.attacker.net"
+  // cannot slip into an exclusion by containing the domain as a substring.
+  function isHostOrSub(host, domain) {
+    return host === domain || host.slice(-(domain.length + 1)) === "." + domain;
+  }
+  var host = location.hostname;
+  if (isHostOrSub(host, "whatsapp.com") || host === "web.whatsapp.com") return;
+  // YouTube: hiding ad chrome breaks playback and YouTube blocks the player.
+  // The universal blocker stays away from the whole Google video surface.
+  if (isHostOrSub(host, "youtube.com") || isHostOrSub(host, "youtube-nocookie.com") ||
+      isHostOrSub(host, "googlevideo.com") || isHostOrSub(host, "ggpht.com") ||
+      isHostOrSub(host, "ytimg.com")) return;
   const AD_SELECTORS = [
     "[id*='google_ads']","[class*='google-ad']","[id^='ad-']","[class^='ad-']",
     ".adsbygoogle",".ad-container",".ad-wrapper",".advertisement",".sponsored",

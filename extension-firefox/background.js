@@ -222,6 +222,8 @@ function onNavigate(details) {
   const cached = getCache(u.hostname);
   if (cached) {
     const should = cached.blocked ||
+      cached.classification === "MALICIOUS" ||
+      cached.classification === "HIGH_RISK" ||
       (cfg.blockSuspicious && cached.classification === "SUSPICIOUS");
     if (should) redirectToWarning(details.tabId, details.url, cached, u.hostname);
     return;
@@ -249,6 +251,8 @@ function checkUrl(url, tabId, host) {
       };
       setCache(host, verdict);
       const should = verdict.blocked ||
+        verdict.classification === "MALICIOUS" ||
+        verdict.classification === "HIGH_RISK" ||
         (cfg.blockSuspicious && verdict.classification === "SUSPICIOUS");
       if (should) redirectToWarning(tabId, url, verdict, host);
     })
