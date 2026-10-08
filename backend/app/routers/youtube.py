@@ -9,6 +9,7 @@ bot". We work around it in three layers:
 from __future__ import annotations
 
 import os
+import socket
 import tempfile
 from fastapi import APIRouter, Depends, Query, Request, HTTPException
 from fastapi.responses import FileResponse
@@ -78,7 +79,19 @@ def _cookie_file() -> str | None:
     if _COOKIE_FILE is not None:
         return _COOKIE_FILE or None
     path = os.environ.get("YTDLP_COOKIES_FILE")
-    if not path or not os.path.isfile(path):
+    if path and os.path.isfile(path):
+        # Render mounts secret files read-only, but yt-dlp rewrites the cookie
+        # jar after every extraction (Errno 30 without this copy).
+        try:
+            fd, tmp = tempfile.mkstemp(prefix="yt_cookies_", suffix=".txt")
+            with open(path, "rb") as src, os.fdopen(fd, "wb") as dst:
+                dst.write(src.read())
+            path = tmp
+        except OSError:
+            path = None
+    else:
+        path = None
+    if not path:
         path = _load_uploaded_cookies()
     if not path:
         raw = os.environ.get("YTDLP_COOKIES")
@@ -91,6 +104,15 @@ def _cookie_file() -> str | None:
     return path or None
 
 
+def _sidecar_up() -> bool:
+    """True when the PO-token sidecar is listening inside the container."""
+    try:
+        with socket.create_connection(("127.0.0.1", int(POT_PORT)), timeout=1):
+            return True
+    except OSError:
+        return False
+
+
 @router.get("/cookies")
 def cookie_status(user=Depends(require_role("ADMIN", "SUPER_ADMIN"))):
     """Whether YouTube cookies are loaded. Admin only."""
@@ -99,6 +121,7 @@ def cookie_status(user=Depends(require_role("ADMIN", "SUPER_ADMIN"))):
         "loaded": bool(p),
         "source": "upload" if (p and p == _load_uploaded_cookies()) else ("env" if p else None),
         "size": os.path.getsize(p) if p and os.path.isfile(p) else 0,
+        "sidecar": _sidecar_up(),
     }
 
 
@@ -204,12 +227,13 @@ def _run_with_fallbacks(build_opts, url, download):
                     return info
         except Exception as e:  # noqa: BLE001
             errors.append(f"{client or 'default'}: {str(e)[:160]}")
+    shown = errors if len(errors) <= 8 else errors[:4] + ["..."] + errors[-4:]
     raise HTTPException(
         status_code=502,
         detail=(
             "YouTube blocked every request from the server for this video. "
             "This is YouTube's anti-bot check on datacentre IPs, not a broken link. "
-            + " | ".join(errors[-4:])
+            + " | ".join(shown)
         ),
     )
 
