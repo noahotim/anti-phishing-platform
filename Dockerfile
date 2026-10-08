@@ -21,11 +21,14 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 
 # Deno gives yt-dlp the JavaScript runtime it needs for YouTube's challenge.
-# This is best effort on purpose: if it cannot be installed the app still runs and
-# only the hardest downloads are affected, which is far better than a failed deploy.
-RUN (curl -fsSL https://deno.land/install.sh | sh) \
-    && ln -sf /root/.deno/bin/deno /usr/local/bin/deno \
-    && deno --version \
+# deno.land is unreachable from Render's builder (the install script fails in
+# milliseconds), so pull the release zip from GitHub instead - GitHub is
+# reachable because Render clones the repo from it. Best effort as before.
+RUN (curl -fsSL -o /tmp/deno.zip https://github.com/denoland/deno/releases/latest/download/deno-x86_64-unknown-linux-gnu.zip \
+    && python -m zipfile -e /tmp/deno.zip /usr/local/bin/ \
+    && chmod +x /usr/local/bin/deno \
+    && rm /tmp/deno.zip \
+    && deno --version) \
     || echo "WARNING: Deno not installed, YouTube challenge solving will be limited"
 
 COPY backend/requirements.txt ./requirements.txt
@@ -56,4 +59,4 @@ ENV BGUTIL_PORT=4416
 EXPOSE 10000
 # The PO-token sidecar runs alongside the API and is started best effort.
 # Its dependency tree lives in node_modules, so Deno only needs read/ffi there.
-CMD ["sh", "-c", "mkdir -p /app/data && (deno run --allow-env --allow-net --allow-ffi=/opt/bgutil/server/node_modules --allow-read=/opt/bgutil/server/node_modules /opt/bgutil/server/src/main.ts -p ${BGUTIL_PORT:-4416} > /tmp/pot.log 2>&1 &) ; sleep 5 ; exec python -m uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-10000} --app-dir /app/backend"]
+CMD ["sh", "-c", "mkdir -p /app/data && (deno run --allow-env --allow-net --allow-ffi=/opt/bgutil/server/node_modules --allow-read=/opt/bgutil/server/node_modules /opt/bgutil/server/src/main.ts -p ${BGUTIL_PORT:-4416} > /tmp/pot.log 2>&1 &) ; sleep 5 ; (head -c 800 /tmp/pot.log >&2 || true) ; exec python -m uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-10000} --app-dir /app/backend"]

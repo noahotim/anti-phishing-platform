@@ -98,7 +98,7 @@ def guard_version():
     for manifest_path in candidates:
         try:
             if manifest_path.exists():
-                data = json.loads(manifest_path.read_text(encoding="utf-8"))
+                data = json.loads(manifest_path.read_text(encoding="utf-8-sig"))
                 ver = data.get("version") or ver
                 name = data.get("name") or name
                 break
