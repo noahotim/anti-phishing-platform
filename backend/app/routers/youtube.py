@@ -9,8 +9,10 @@ bot". We work around it in three layers:
 from __future__ import annotations
 
 import os
+import re
 import socket
 import tempfile
+import urllib.request
 from fastapi import APIRouter, Depends, Query, Request, HTTPException
 from fastapi.responses import FileResponse
 
@@ -113,6 +115,20 @@ def _sidecar_up() -> bool:
         return False
 
 
+def _sidecar_ping() -> dict:
+    """Full round-trip against the sidecar's /ping route (proves deno serves)."""
+    try:
+        with urllib.request.urlopen(
+            f"http://127.0.0.1:{POT_PORT}/ping", timeout=3
+        ) as resp:
+            return {
+                "status": resp.status,
+                "body": resp.read(300).decode("utf-8", "replace"),
+            }
+    except Exception as e:  # noqa: BLE001
+        return {"status": 0, "body": str(e)[:200]}
+
+
 @router.get("/cookies")
 def cookie_status(user=Depends(require_role("ADMIN", "SUPER_ADMIN"))):
     """Whether YouTube cookies are loaded. Admin only."""
@@ -122,6 +138,7 @@ def cookie_status(user=Depends(require_role("ADMIN", "SUPER_ADMIN"))):
         "source": "upload" if (p and p == _load_uploaded_cookies()) else ("env" if p else None),
         "size": os.path.getsize(p) if p and os.path.isfile(p) else 0,
         "sidecar": _sidecar_up(),
+        "sidecar_ping": _sidecar_ping(),
     }
 
 
@@ -201,6 +218,28 @@ def _opts_for_client(client):
     return opts
 
 
+class _LineLog:
+    """Collects yt-dlp output so a failed run can explain itself."""
+
+    def __init__(self):
+        self.lines: list[str] = []
+
+    def debug(self, msg):
+        self.lines.append(str(msg))
+
+    def info(self, msg):
+        self.lines.append(str(msg))
+
+    def warning(self, msg):
+        self.lines.append(str(msg))
+
+    def error(self, msg):
+        self.lines.append(str(msg))
+
+
+_POT_HINT = re.compile(r"pot|bgutil|token|plugin|sign in|bot check|provider", re.I)
+
+
 def _run_with_fallbacks(build_opts, url, download):
     """Try each player client until one works. Returns the yt-dlp info dict."""
     import yt_dlp  # type: ignore
@@ -212,12 +251,17 @@ def _run_with_fallbacks(build_opts, url, download):
             c for c in PLAYER_CLIENTS if (c or "default") != _last_good_client
         ]
     errors = []
+    logs: list[list[str]] = []
     for client in order:
         opts = _opts_for_client(client)
+        lg = _LineLog()
+        opts["logger"] = lg
+        opts["verbose"] = True
         try:
             opts.update(build_opts(client))
         except Exception as e:  # noqa: BLE001
             errors.append(f"{client or 'default'}: {e}")
+            logs.append(lg.lines)
             continue
         try:
             with yt_dlp.YoutubeDL(opts) as ydl:
@@ -227,13 +271,25 @@ def _run_with_fallbacks(build_opts, url, download):
                     return info
         except Exception as e:  # noqa: BLE001
             errors.append(f"{client or 'default'}: {str(e)[:160]}")
+        logs.append(lg.lines)
     shown = errors if len(errors) <= 8 else errors[:4] + ["..."] + errors[-4:]
+    # Surface PO-token/provider hints from the first client that logged any:
+    # that is what separates "no token was requested" from "token fetch broke".
+    hints: list[str] = []
+    for lines in logs:
+        hints = [l for l in lines if _POT_HINT.search(l)]
+        if hints:
+            break
+    if not hints and logs:
+        hints = logs[0][-8:]
+    debug = " ;; ".join(l[:300] for l in hints[-12:])
     raise HTTPException(
         status_code=502,
         detail=(
             "YouTube blocked every request from the server for this video. "
             "This is YouTube's anti-bot check on datacentre IPs, not a broken link. "
             + " | ".join(shown)
+            + (("\nDEBUG: " + debug) if debug else "")
         ),
     )
 
