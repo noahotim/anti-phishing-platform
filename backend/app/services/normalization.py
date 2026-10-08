@@ -8,6 +8,7 @@ the same canonical space.
 from __future__ import annotations
 
 import re
+import urllib.parse
 
 import idna
 
@@ -37,6 +38,36 @@ def to_ascii(domain: str) -> str:
         return idna.encode(d, uts46=True).decode("ascii").rstrip(".")
     except (idna.IDNAError, UnicodeError, IndexError):
         return re.sub(r"[^a-z0-9.\-_]", "", d).rstrip(".")
+
+
+def domain_from_input(value: str) -> str:
+    """Pull the bare hostname out of whatever a user pasted into a domain field.
+
+    People paste full URLs ('https://example.com/path?q=1') into fields that
+    expect 'example.com'.  Without this, to_ascii's fallback regex strips the
+    ':' and '/' and registers a garbage host like 'httpsexample.com', so the
+    whitelist entry never matches the real site.  Handles scheme, path, port
+    and userinfo; leaves bare domains untouched.
+    """
+    d = (value or "").strip()
+    if not d:
+        return ""
+    if "://" in d:
+        try:
+            parsed = urllib.parse.urlparse(d)
+            if parsed.hostname:
+                return parsed.hostname.lower().rstrip(".")
+        except ValueError:
+            pass
+    # No scheme: strip path, credentials and port by hand.
+    d = d.split("/", 1)[0]
+    d = d.split("?", 1)[0].split("#", 1)[0]
+    d = d.rsplit("@", 1)[-1]
+    if d.startswith("["):
+        d = d[1:].split("]", 1)[0]
+    elif d.count(":") == 1:
+        d = d.split(":", 1)[0]
+    return d.strip().lower().rstrip(".")
 
 
 def to_unicode(domain: str) -> str:

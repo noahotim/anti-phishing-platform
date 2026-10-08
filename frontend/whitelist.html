@@ -12,7 +12,7 @@
       <h1 class="gradient-text" style="font-size:20px;">Add trusted site to whitelist</h1>
       <p class="sub" style="margin-top:8px;">If BOTIMPHISHGUARD blocks a site you trust, add it here. It will be allowed instantly (even betting sites). You need to be logged in.</p>
       <div style="margin-top:16px;">
-        <label style="font-size:13px;">Domain (e.g. example.com or sub.example.com)</label>
+        <label style="font-size:13px;">Domain (example.com, sub.example.com, or paste the full URL)</label>
         <input id="domain" type="text" placeholder="example.com" style="width:100%;padding:10px;border-radius:6px;background:#132a41;color:#eaf2ff;border:1px solid #23455f;margin-top:6px;">
       </div>
       <div style="margin-top:12px;">
@@ -36,16 +36,33 @@
       try { d = new URL(d).hostname || d; } catch(e){}
       document.getElementById("domain").value = d;
     }
+    // People paste "https://example.com/page" here. Extract the hostname so
+    // the stored entry matches the real site instead of a mangled string.
+    function hostname(v){
+      var s = (v || "").trim();
+      if (!s) return "";
+      try {
+        return new URL(s.indexOf("://") === -1 ? "https://" + s : s).hostname.toLowerCase() || s;
+      } catch(e){ return s; }
+    }
     document.getElementById("add").addEventListener("click", function(){
-      var domain = document.getElementById("domain").value.trim();
+      var domain = hostname(document.getElementById("domain").value);
       var notes = document.getElementById("notes").value.trim();
       var msg = document.getElementById("msg");
       if (!domain) { msg.textContent = "Enter a domain."; msg.style.color="#ff9f9f"; return; }
       msg.textContent = "Adding…"; msg.style.color="#8aa4c2";
       API.selfAddTrusted({ domain: domain, category: "User Whitelisted", notes: notes }).then(function(r){
-        msg.textContent = "Added " + r.normalized_domain + " to whitelist — it will no longer be blocked. Refresh the site.";
+        var added = r.normalized_domain || domain;
+        msg.textContent = "Added " + added + " to whitelist — it will no longer be blocked. Refresh the site.";
         msg.style.color="#5ede8f";
         document.getElementById("domain").value = "";
+        // Tell the browser extension (if it is running) so it drops its cached
+        // block verdict and refreshes its rule list right now, instead of
+        // waiting out the 10-minute verdict cache / 30-minute rule refresh.
+        try {
+          document.documentElement.setAttribute("data-phishguard-whitelisted", added);
+          window.dispatchEvent(new CustomEvent("phishguard-whitelisted", { detail: { domain: added } }));
+        } catch(e){}
       }).catch(function(e){
         msg.textContent = "Failed: " + e.message;
         msg.style.color="#ff9f9f";

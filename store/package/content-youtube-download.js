@@ -2,9 +2,46 @@
 // Injects "Download Video" and "Download Audio" below the YouTube player.
 (function(){
   "use strict";
+  const DEF_SERVER = "https://phishguard-8vri.onrender.com";
   const BTN_STYLE = "background:#1a5c2a;color:#fff;border:0;border-radius:8px;padding:8px 14px;margin-right:8px;font:600 13px system-ui;cursor:pointer;";
   const AUDIO_STYLE = "background:#1d3a55;color:#cfe0f3;border:1px solid #2f6b8f;border-radius:8px;padding:8px 14px;font:600 13px system-ui;cursor:pointer;";
   let injected = false;
+
+  // The server is whatever the user configured in the extension options, so
+  // downloads follow the guard instead of pointing at a fixed host.
+  function withServer(fn){
+    try {
+      if (typeof browser !== "undefined" && browser.storage && browser.storage.local) {
+        browser.storage.local.get({ server: DEF_SERVER }).then(done).catch(function(){ fn(DEF_SERVER); });
+        return;
+      }
+      if (typeof chrome !== "undefined" && chrome.storage && chrome.storage.local) {
+        chrome.storage.local.get({ server: DEF_SERVER }, done);
+        return;
+      }
+    } catch(e){}
+    fn(DEF_SERVER);
+    function done(raw){
+      var s = (raw && raw.server) ? String(raw.server) : DEF_SERVER;
+      fn(s.replace(/\/+$/, ""));
+    }
+  }
+
+  function startDownload(format, quality){
+    var url = location.href;
+    withServer(function(server){
+      var dl = server + "/api/youtube/download?url=" + encodeURIComponent(url)
+             + "&format=" + format + "&quality=" + quality;
+      // Single trigger: the server answers with Content-Disposition: attachment,
+      // so the browser downloads in place. A second window.open here only ever
+      // produced a duplicate download or an empty tab.
+      var a = document.createElement("a");
+      a.href = dl; a.download = ""; a.style.display = "none";
+      document.body.appendChild(a); a.click();
+      setTimeout(function(){ try{ document.body.removeChild(a); }catch(e){} }, 2000);
+    });
+  }
+
   function getVideoId(){
     try { return new URL(location.href).searchParams.get("v") || ""; } catch(e){ return ""; }
   }
@@ -40,14 +77,7 @@
       var o=document.createElement("button"); o.textContent=q[0]; o.style.cssText="background:#1a3a5c;color:#eaf2ff;border:0;border-radius:4px;padding:6px 10px;text-align:left;cursor:pointer;font:12px system-ui;";
       o.addEventListener("click", function(e){
         e.stopPropagation(); vMenu.style.display="none";
-        var url=location.href;
-        // Instant direct download to local storage at chosen quality — no standalone page
-        var dl="https://phishguard-8vri.onrender.com/api/youtube/download?url="+encodeURIComponent(url)+"&format=mp4&quality="+q[1];
-        // Trigger download in hidden iframe to stay on page
-        var a=document.createElement("a"); a.href=dl; a.download=""; a.style.display="none"; document.body.appendChild(a); a.click();
-        setTimeout(function(){ try{ document.body.removeChild(a); }catch(e){} }, 2000);
-        // Fallback: also open in new tab if popup blocked
-        setTimeout(function(){ window.open(dl, "_blank"); }, 300);
+        startDownload("mp4", q[1]);
       });
       vMenu.appendChild(o);
     });
@@ -65,11 +95,7 @@
       var o=document.createElement("button"); o.textContent=q[0]; o.style.cssText="background:#1a3a5c;color:#eaf2ff;border:0;border-radius:4px;padding:6px 10px;text-align:left;cursor:pointer;font:12px system-ui;";
       o.addEventListener("click", function(e){
         e.stopPropagation(); aMenu.style.display="none";
-        var url=location.href;
-        var dl="https://phishguard-8vri.onrender.com/api/youtube/download?url="+encodeURIComponent(url)+"&format=mp3&quality="+q[1];
-        var a=document.createElement("a"); a.href=dl; a.download=""; a.style.display="none"; document.body.appendChild(a); a.click();
-        setTimeout(function(){ try{ document.body.removeChild(a); }catch(e){} }, 2000);
-        setTimeout(function(){ window.open(dl, "_blank"); }, 300);
+        startDownload("mp3", q[1]);
       });
       aMenu.appendChild(o);
     });
@@ -85,7 +111,7 @@
     injected = true;
   }
   // YouTube is SPA — observe for navigation
-  var obs = new MutationObserver(function(){ 
+  var obs = new MutationObserver(function(){
     if (location.pathname === "/watch") createBar();
     else { var b=document.getElementById("botim-download-bar"); if(b) b.remove(); injected=false; }
   });

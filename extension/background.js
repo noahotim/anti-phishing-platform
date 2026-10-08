@@ -461,6 +461,22 @@ NS.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     ).catch((e) => sendResponse({ ok: false, error: e.message }));
     return true;
   }
+  if (msg && msg.type === "whitelist-added") {
+    // The user just whitelisted a site (from the platform page). Drop every
+    // cached verdict that host could match and pull the fresh rule feed — the
+    // server now excludes whitelisted domains from it — so the site is
+    // immediately reachable instead of staying blocked until the caches expire.
+    const wh = String(msg.host || "").toLowerCase().replace(/^\.+/, "").replace(/\.+$/, "");
+    if (wh) {
+      for (const k of Array.from(verdictCache.keys())) {
+        if (k === wh || k.endsWith("." + wh) || wh.endsWith("." + k)) verdictCache.delete(k);
+      }
+    }
+    refreshRules().then(() =>
+      sendResponse({ ok: true, count: threatHosts.length })
+    ).catch((e) => sendResponse({ ok: false, error: e.message }));
+    return true;
+  }
   if (msg && msg.type === "allow-host") {
     sendResponse({ ok: allowBypass(msg.url || "") });
     return true;

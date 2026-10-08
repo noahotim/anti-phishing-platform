@@ -32,8 +32,34 @@ def guard_rules(org_id: int = Query(default=1, ge=1)):
         """,
         (org_id,),
     )
+    # Whitelisted domains never appear in the rule feed: otherwise the
+    # extension keeps instant-blocking a site the user just approved, because
+    # its DNR rules and local threat list are built from this endpoint alone.
+    trusted = [
+        (r["normalized_domain"] or "").lower().rstrip(".")
+        for r in database.fetchall(
+            "SELECT normalized_domain FROM trusted_domains WHERE org_id=?",
+            (org_id,),
+        )
+    ]
+    trusted = [t for t in trusted if t]
+
+    def suppressed(domain: str) -> bool:
+        d = (domain or "").lower().rstrip(".")
+        if not d:
+            return False
+        for t in trusted:
+            # Exact entry, a threat under a whitelisted apex, or a threat
+            # apex containing the whitelisted host (the precheck layer still
+            # decides subdomain-by-subdomain in that case).
+            if d == t or d.endswith("." + t) or t.endswith("." + d):
+                return True
+        return False
+
     rules = []
     for r in rows:
+        if suppressed(r["domain"]):
+            continue
         category = r["category"] or ""
         # Unconditional malware always blocks; categorized rows only while the
         # category is active in the content policy.
@@ -48,6 +74,7 @@ def guard_rules(org_id: int = Query(default=1, ge=1)):
     return {
         "org": org_id,
         "active_categories": sorted(active),
+        "trusted": trusted,
         "rules": rules,
         "generated_at": database.utcnow_iso(),
     }

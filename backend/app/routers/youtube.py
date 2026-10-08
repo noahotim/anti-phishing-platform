@@ -22,21 +22,30 @@ UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
 
 # Tried one at a time, most to least likely to work from a datacentre IP.
 # Different clients hit different bot-check rules, so one of these usually gets
-# through for a given video.
+# through for a given video. Order is based on a live test (yt-dlp 2026.08.19,
+# datacentre IP): android_creator, android_testsuite, android_music and the
+# default client all returned full format lists, while tv_simply, web_safari,
+# mweb, tv, ios, web_embedded and web_creator were refused outright.
 PLAYER_CLIENTS = [
-    "tv_simply",
+    "android_creator",
+    "android_testsuite",
+    "android_music",
+    None,  # yt-dlp defaults; also passes the bot check
     "android_vr",
+    # Last resort: refused from a datacentre IP, but may work for some videos
+    # or when an admin has uploaded YouTube cookies.
+    "tv_simply",
+    "tv",
     "web_safari",
     "mweb",
-    "tv",
-    "android_creator",
     "ios",
     "web_embedded",
-    "android_testsuite",
     "web_creator",
-    "android_music",
-    None,  # last resort: yt-dlp defaults
 ]
+
+# The client that worked most recently. Tried first on the next request so we
+# stop re-paying the cost of the failing clients in front of it.
+_last_good_client: str | None = None
 
 _COOKIE_FILE: str | None = None
 
@@ -173,8 +182,14 @@ def _run_with_fallbacks(build_opts, url, download):
     """Try each player client until one works. Returns the yt-dlp info dict."""
     import yt_dlp  # type: ignore
 
+    global _last_good_client
+    order = PLAYER_CLIENTS
+    if _last_good_client is not None:
+        order = [c for c in PLAYER_CLIENTS if (c or "default") == _last_good_client] + [
+            c for c in PLAYER_CLIENTS if (c or "default") != _last_good_client
+        ]
     errors = []
-    for client in PLAYER_CLIENTS:
+    for client in order:
         opts = _opts_for_client(client)
         try:
             opts.update(build_opts(client))
@@ -185,6 +200,7 @@ def _run_with_fallbacks(build_opts, url, download):
             with yt_dlp.YoutubeDL(opts) as ydl:
                 info = ydl.extract_info(url, download=download)
                 if info:
+                    _last_good_client = client or "default"
                     return info
         except Exception as e:  # noqa: BLE001
             errors.append(f"{client or 'default'}: {str(e)[:160]}")

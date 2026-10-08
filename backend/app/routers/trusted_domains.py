@@ -40,6 +40,17 @@ def _row_to_dict(row) -> dict:
     }
 
 
+def _domain_input(raw: str) -> tuple[str, str]:
+    """(hostname, normalized) from user input — full URLs are accepted.
+
+    Users paste 'https://example.com/page' into domain fields; storing the
+    raw string produced 'httpsexample.com' and the whitelist never matched.
+    """
+    host = normalization.domain_from_input(raw)
+    norm = normalization.to_ascii(host)
+    return host, norm
+
+
 @router.get("")
 def list_domains(
     user: CurrentUser = Depends(require_admin),
@@ -64,7 +75,7 @@ def create_domain(
     request: Request,
     user: CurrentUser = Depends(require_admin),
 ):
-    norm = normalization.to_ascii(body.domain)
+    host, norm = _domain_input(body.domain)
     if not norm or "." not in norm:
         raise HTTPException(status_code=422, detail="invalid domain")
     exists = database.fetchone(
@@ -81,7 +92,7 @@ def create_domain(
         VALUES (?,?,?,?,?,?,?,?,?,?)
         """,
         (
-            user.org_id, body.domain.strip(), norm, body.category,
+            user.org_id, host, norm, body.category,
             1 if body.is_critical else 0, body.allowed_subdomains.strip(),
             body.notes.strip(), user.id, database.utcnow_iso(),
             database.utcnow_iso(),
@@ -105,7 +116,7 @@ def self_add_domain(
     org_id = user.org_id if user else 1
     actor_id = user.id if user else None
     actor_email = user.email if user else "anonymous"
-    norm = normalization.to_ascii(body.domain)
+    host, norm = _domain_input(body.domain)
     if not norm or "." not in norm:
         raise HTTPException(status_code=422, detail="invalid domain")
     exists = database.fetchone(
@@ -114,6 +125,9 @@ def self_add_domain(
     )
     if exists:
         raise HTTPException(status_code=409, detail="domain already trusted")
+    # Whitelisting a site means the whole site: allow its subdomains too, so
+    # 'example.com' also covers 'www.example.com' without a second entry.
+    allowed = body.allowed_subdomains.strip() or f"*.{norm}"
     new_id = database.execute(
         """
         INSERT INTO trusted_domains
@@ -122,8 +136,8 @@ def self_add_domain(
         VALUES (?,?,?,?,?,?,?,?,?,?)
         """,
         (
-            org_id, body.domain.strip(), norm, body.category,
-            1 if body.is_critical else 0, body.allowed_subdomains.strip(),
+            org_id, host, norm, body.category,
+            1 if body.is_critical else 0, allowed,
             (body.notes.strip() or f"Whitelisted by {actor_email}")[:2000], actor_id, database.utcnow_iso(),
             database.utcnow_iso(),
         ),
@@ -149,7 +163,7 @@ def update_domain(
     )
     if row is None:
         raise HTTPException(status_code=404, detail="domain not found")
-    norm = normalization.to_ascii(body.domain)
+    host, norm = _domain_input(body.domain)
     prev = _row_to_dict(row)
     database.execute(
         """
@@ -158,7 +172,7 @@ def update_domain(
         WHERE id=?
         """,
         (
-            body.domain.strip(), norm, body.category, 1 if body.is_critical else 0,
+            host, norm, body.category, 1 if body.is_critical else 0,
             body.allowed_subdomains.strip(), body.notes.strip(),
             database.utcnow_iso(), domain_id,
         ),
@@ -212,7 +226,7 @@ async def import_domains(
         domain = (row.get("domain") or "").strip()
         if not domain:
             continue
-        norm = normalization.to_ascii(domain)
+        host, norm = _domain_input(domain)
         if not norm or "." not in norm:
             skipped += 1
             continue
@@ -225,7 +239,7 @@ async def import_domains(
             continue
         records.append(
             (
-                user.org_id, domain, norm,
+                user.org_id, host, norm,
                 (row.get("category") or "Corporate").strip()[:64],
                 1 if (row.get("is_critical") or "").lower() in {"1","true","yes","y"} else 0,
                 (row.get("allowed_subdomains") or "").strip()[:1024],

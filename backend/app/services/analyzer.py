@@ -272,13 +272,20 @@ class UrlAnalyzer:
         signals = detection.legacy_signals
         report = correlate_evidence(detection.items, thresholds)
 
-        # Verified trust is positive evidence.  Confirmed threat intelligence
-        # has already produced critical evidence and therefore overrides it.
-        ti_malicious = any(v.verdict == VERDICT_MALICIOUS for v in ti_verdicts)
+        # Verified trust is positive evidence.  Only *external* threat
+        # intelligence (Safe Browsing / VirusTotal / URLhaus) overrides it.
+        # The local known_threats row is the administrator's own list, and
+        # whitelisting a domain is exactly the explicit exception to that
+        # list — previously a local TI hit beat trust, so adding a manually
+        # blocked site to the whitelist never unblocked it.
+        external_malicious = any(
+            v.verdict == VERDICT_MALICIOUS and v.provider != "local_database"
+            for v in ti_verdicts
+        )
         ti_benign = bool(ti_verdicts) and all(
             v.verdict == VERDICT_BENIGN for v in ti_verdicts
         )
-        if trusted and not ti_malicious:
+        if trusted and not external_malicious:
             report.score = 0
             report.classification = SAFE
             report.risk_level = "LOW"
