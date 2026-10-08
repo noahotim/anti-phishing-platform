@@ -8,6 +8,7 @@ bot". We work around it in three layers:
 """
 from __future__ import annotations
 
+import json
 import os
 import re
 import socket
@@ -80,19 +81,21 @@ def _cookie_file() -> str | None:
     global _COOKIE_FILE
     if _COOKIE_FILE is not None:
         return _COOKIE_FILE or None
-    path = os.environ.get("YTDLP_COOKIES_FILE")
-    if path and os.path.isfile(path):
-        # Render mounts secret files read-only, but yt-dlp rewrites the cookie
-        # jar after every extraction (Errno 30 without this copy).
-        try:
-            fd, tmp = tempfile.mkstemp(prefix="yt_cookies_", suffix=".txt")
-            with open(path, "rb") as src, os.fdopen(fd, "wb") as dst:
-                dst.write(src.read())
-            path = tmp
-        except OSError:
-            path = None
-    else:
-        path = None
+    # An admin upload always wins: it is the only way to refresh a session
+    # without touching the deployment. The env secret is the fallback.
+    path = _load_uploaded_cookies()
+    if not path:
+        p = os.environ.get("YTDLP_COOKIES_FILE")
+        if p and os.path.isfile(p):
+            # Render mounts secret files read-only, but yt-dlp rewrites the cookie
+            # jar after every extraction (Errno 30 without this copy).
+            try:
+                fd, tmp = tempfile.mkstemp(prefix="yt_cookies_", suffix=".txt")
+                with open(p, "rb") as src, os.fdopen(fd, "wb") as dst:
+                    dst.write(src.read())
+                path = tmp
+            except OSError:
+                path = None
     if not path:
         path = _load_uploaded_cookies()
     if not path:
@@ -129,6 +132,18 @@ def _sidecar_ping() -> dict:
         return {"status": 0, "body": str(e)[:200]}
 
 
+def _sidecar_minters():
+    """Keys the sidecar has actually minted PO tokens for: empty means yt-dlp
+    never reached the provider, non-empty means tokens were requested."""
+    try:
+        with urllib.request.urlopen(
+            f"http://127.0.0.1:{POT_PORT}/minter_cache", timeout=3
+        ) as resp:
+            return json.loads(resp.read().decode("utf-8", "replace") or "[]")[:10]
+    except Exception as e:  # noqa: BLE001
+        return [f"unreachable: {str(e)[:120]}"]
+
+
 @router.get("/cookies")
 def cookie_status(user=Depends(require_role("ADMIN", "SUPER_ADMIN"))):
     """Whether YouTube cookies are loaded. Admin only."""
@@ -139,6 +154,7 @@ def cookie_status(user=Depends(require_role("ADMIN", "SUPER_ADMIN"))):
         "size": os.path.getsize(p) if p and os.path.isfile(p) else 0,
         "sidecar": _sidecar_up(),
         "sidecar_ping": _sidecar_ping(),
+        "sidecar_minters": _sidecar_minters(),
     }
 
 
@@ -273,16 +289,26 @@ def _run_with_fallbacks(build_opts, url, download):
             errors.append(f"{client or 'default'}: {str(e)[:160]}")
         logs.append(lg.lines)
     shown = errors if len(errors) <= 8 else errors[:4] + ["..."] + errors[-4:]
-    # Surface PO-token/provider hints from the first client that logged any:
-    # that is what separates "no token was requested" from "token fetch broke".
-    hints: list[str] = []
-    for lines in logs:
-        hints = [l for l in lines if _POT_HINT.search(l)]
-        if hints:
-            break
+    # Prefer actual provider activity lines (requests, failures) across every
+    # client; fall back to any PO-token hint. This is what separates
+    # "no token was requested" from "token fetch was attempted and broke".
+    all_lines = [l for lines in logs for l in lines]
+    pot_lines = [
+        l
+        for l in all_lines
+        if "[pot:bgutil:http]" in l and "PO Token Providers" not in l
+    ]
+    hints = pot_lines or [l for l in all_lines if _POT_HINT.search(l)]
     if not hints and logs:
         hints = logs[0][-8:]
-    debug = " ;; ".join(l[:300] for l in hints[-12:])
+    seen: set[str] = set()
+    uniq: list[str] = []
+    for line in hints:
+        key = line[:120]
+        if key not in seen:
+            seen.add(key)
+            uniq.append(line)
+    debug = " ;; ".join(l[:300] for l in uniq[-14:])
     raise HTTPException(
         status_code=502,
         detail=(
