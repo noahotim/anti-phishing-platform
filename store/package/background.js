@@ -35,6 +35,58 @@ const inFlight = new Map();     // url -> Promise
 const bypassHosts = new Map();  // host -> expiry ms (user chose "continue anyway")
 const dnrIdByHost = {};         // host -> dynamic rule id (Chrome only)
 
+// --- Client-side YouTube downloader -----------------------------------------
+// Media is fetched in an offscreen document (which carries host permissions
+// and can call chrome.downloads). The actual decoding runs in a sandboxed page
+// it embeds, because extension pages forbid eval. Routed from the YouTube
+// content script; falls back to the server path when the client path fails.
+let offscreenCreating = null;
+const ytJobs = {}; // jobId -> tabId (for progress relaying)
+
+function ensureOffscreen() {
+  if (!NS.offscreen || !NS.offscreen.createDocument) return Promise.resolve(false);
+  return NS.offscreen.hasDocument().then((has) => {
+    if (has) return true;
+    if (!offscreenCreating) {
+      offscreenCreating = NS.offscreen.createDocument({
+        url: "offscreen.html",
+        reasons: ["BLOBS"],
+        justification: "Fetch media in the user's session and hand the blob to the download manager.",
+      }).then(() => { offscreenCreating = null; return true; })
+        .catch((e) => { offscreenCreating = null; return false; });
+    }
+    return offscreenCreating;
+  }).catch(() => false);
+}
+
+function ytCookieString() {
+  if (!NS.cookies || !NS.cookies.getAll) return Promise.resolve("");
+  const domains = ["youtube.com", "google.com"];
+  return Promise.all(domains.map((domain) =>
+    NS.cookies.getAll({ domain }).catch(() => [])
+  )).then((lists) => {
+    const seen = {};
+    lists.forEach((list) => list.forEach((c) => { seen[c.name] = c.value; }));
+    return Object.keys(seen).map((k) => k + "=" + seen[k]).join("; ");
+  });
+}
+
+function clientDownload(msg) {
+  return ensureOffscreen().then((ready) => {
+    if (!ready) return { ok: false, error: "Client download unavailable in this browser" };
+    return ytCookieString().then((cookie) =>
+      NS.runtime.sendMessage({
+        type: "offscreen:yt-download",
+        jobId: msg.jobId,
+        videoId: msg.videoId,
+        cookie: cookie,
+        kind: msg.kind,
+        quality: msg.quality,
+      }).then((resp) => resp || { ok: false, error: "No response from offscreen document" })
+    );
+  });
+}
+
 NS.runtime.onInstalled.addListener(() => { refreshRules(); scheduleRefresh(); });
 NS.runtime.onStartup.addListener(() => { refreshRules(); scheduleRefresh(); });
 NS.alarms.onAlarm.addListener((a) => { if (a.name === "refreshRules") refreshRules(); });
@@ -517,6 +569,22 @@ NS.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     // also record locally
     recordBlock(host, { blockedLabel: "Ad blocked", blockedCategory: "ADS", classification: "AD" });
     sendResponse({ ok: true });
+    return true;
+  }
+  if (msg && msg.type === "yt-download") {
+    const tabId = sender && sender.tab ? sender.tab.id : null;
+    if (msg.jobId != null) ytJobs[msg.jobId] = tabId;
+    clientDownload(msg)
+      .then((r) => sendResponse(r))
+      .catch((e) => sendResponse({ ok: false, error: e.message }))
+      .then(() => { if (msg.jobId != null) delete ytJobs[msg.jobId]; });
+    return true;
+  }
+  if (msg && msg.type === "yt-progress") {
+    const tabId = ytJobs[msg.jobId];
+    if (tabId != null) {
+      try { NS.tabs.sendMessage(tabId, { type: "yt-progress", jobId: msg.jobId, bytes: msg.bytes }); } catch (e) {}
+    }
     return true;
   }
   sendResponse({ ok: false, error: "unknown message type" });

@@ -1,0 +1,20 @@
+{
+  "name": "botim-yt-client",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Bundles youtubei.js + bgutils-js into the extension's client-side YouTube downloader.",
+  "scripts": {
+    "build": "node build.mjs"
+  },
+  "dependencies": {
+    "bgutils-js": "^3.2.0",
+    "youtubei.js": "^18.1.0"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.0"
+  },
+  "allowScripts": {
+    "esbuild@0.25.12": true
+  }
+}

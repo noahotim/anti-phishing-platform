@@ -27,18 +27,47 @@
     }
   }
 
+  function serverDownload(server, url, format, quality){
+    var dl = server + "/api/youtube/download?url=" + encodeURIComponent(url)
+           + "&format=" + format + "&quality=" + quality;
+    // Single trigger: the server answers with Content-Disposition: attachment,
+    // so the browser downloads in place. A second window.open here only ever
+    // produced a duplicate download or an empty tab.
+    var a = document.createElement("a");
+    a.href = dl; a.download = ""; a.style.display = "none";
+    document.body.appendChild(a); a.click();
+    setTimeout(function(){ try{ document.body.removeChild(a); }catch(e){} }, 2000);
+  }
+
+  // Ask the background service worker to download in the browser itself
+  // (fetch + decode + chrome.downloads). Returns true when it accepted the job.
+  function tryClientDownload(kind, quality){
+    return new Promise(function(resolve){
+      try {
+        if (typeof chrome === "undefined" || !chrome.runtime || !chrome.runtime.sendMessage) {
+          resolve(false); return;
+        }
+        chrome.runtime.sendMessage({
+          type: "yt-download",
+          jobId: "ytjob-" + Date.now() + "-" + Math.floor(Math.random() * 1e6),
+          videoId: getVideoId(),
+          kind: kind,
+          quality: quality
+        }, function(resp){
+          if (chrome.runtime.lastError) { resolve(false); return; }
+          resolve(!!(resp && resp.ok));
+        });
+      } catch(e){ resolve(false); }
+    });
+  }
+
   function startDownload(format, quality){
     var url = location.href;
-    withServer(function(server){
-      var dl = server + "/api/youtube/download?url=" + encodeURIComponent(url)
-             + "&format=" + format + "&quality=" + quality;
-      // Single trigger: the server answers with Content-Disposition: attachment,
-      // so the browser downloads in place. A second window.open here only ever
-      // produced a duplicate download or an empty tab.
-      var a = document.createElement("a");
-      a.href = dl; a.download = ""; a.style.display = "none";
-      document.body.appendChild(a); a.click();
-      setTimeout(function(){ try{ document.body.removeChild(a); }catch(e){} }, 2000);
+    var kind = (format === "mp3") ? "audio" : "video";
+    // Prefer the in-extension path (works for every user, no shared server IP),
+    // and only fall back to the server when the client path cannot run.
+    tryClientDownload(kind, quality).then(function(ok){
+      if (!ok) withServer(function(server){ serverDownload(server, url, format, quality); });
     });
   }
 
