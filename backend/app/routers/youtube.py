@@ -228,9 +228,15 @@ def _base_opts() -> dict:
 
 def _opts_for_client(client):
     opts = _base_opts()
+    # fetch_pot defaults to "auto": yt-dlp only asks the provider when the
+    # client's own policy marks a token required, which silently skips the
+    # sidecar for every client we use. "always" makes the sidecar engage, so
+    # player requests carry a PO token (the documented way past
+    # "Sign in to confirm you're not a bot" from a datacentre IP).
+    yt_args = {"fetch_pot": ["always"]}
     if client:
-        # merge, do not replace, or the PO token settings are lost
-        opts["extractor_args"]["youtube"] = {"player_client": [client]}
+        yt_args["player_client"] = [client]
+    opts["extractor_args"]["youtube"] = yt_args
     return opts
 
 
