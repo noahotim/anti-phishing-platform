@@ -203,7 +203,9 @@ def _pot_args() -> dict:
     runs as a sidecar inside the container; if it is not up we carry on without,
     which still covers the videos YouTube does not challenge."""
     return {
-        "youtubepot-bgutilhttp": {"base_url": f"http://127.0.0.1:{POT_PORT}"}
+        # The value must be a list: yt-dlp treats API-style extractor args as
+        # name -> [values] and a bare string collapses to an empty scheme.
+        "youtubepot-bgutilhttp": {"base_url": [f"http://127.0.0.1:{POT_PORT}"]}
     }
 
 
