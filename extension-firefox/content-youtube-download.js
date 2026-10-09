@@ -27,18 +27,47 @@
     }
   }
 
+  function serverDownload(server, url, format, quality){
+    var dl = server + "/api/youtube/download?url=" + encodeURIComponent(url)
+           + "&format=" + format + "&quality=" + quality;
+    // Single trigger: the server answers with Content-Disposition: attachment,
+    // so the browser downloads in place. A second window.open here only ever
+    // produced a duplicate download or an empty tab.
+    var a = document.createElement("a");
+    a.href = dl; a.download = ""; a.style.display = "none";
+    document.body.appendChild(a); a.click();
+    setTimeout(function(){ try{ document.body.removeChild(a); }catch(e){} }, 2000);
+  }
+
+  // Ask the background service worker to download in the browser itself
+  // (fetch + decode + chrome.downloads). Returns true when it accepted the job.
+  function tryClientDownload(kind, quality){
+    return new Promise(function(resolve){
+      try {
+        if (typeof chrome === "undefined" || !chrome.runtime || !chrome.runtime.sendMessage) {
+          resolve(false); return;
+        }
+        chrome.runtime.sendMessage({
+          type: "yt-download",
+          jobId: "ytjob-" + Date.now() + "-" + Math.floor(Math.random() * 1e6),
+          videoId: getVideoId(),
+          kind: kind,
+          quality: quality
+        }, function(resp){
+          if (chrome.runtime.lastError) { resolve(false); return; }
+          resolve(!!(resp && resp.ok));
+        });
+      } catch(e){ resolve(false); }
+    });
+  }
+
   function startDownload(format, quality){
     var url = location.href;
-    withServer(function(server){
-      var dl = server + "/api/youtube/download?url=" + encodeURIComponent(url)
-             + "&format=" + format + "&quality=" + quality;
-      // Single trigger: the server answers with Content-Disposition: attachment,
-      // so the browser downloads in place. A second window.open here only ever
-      // produced a duplicate download or an empty tab.
-      var a = document.createElement("a");
-      a.href = dl; a.download = ""; a.style.display = "none";
-      document.body.appendChild(a); a.click();
-      setTimeout(function(){ try{ document.body.removeChild(a); }catch(e){} }, 2000);
+    var kind = (format === "mp3") ? "audio" : "video";
+    // Prefer the in-extension path (works for every user, no shared server IP),
+    // and only fall back to the server when the client path cannot run.
+    tryClientDownload(kind, quality).then(function(ok){
+      if (!ok) withServer(function(server){ serverDownload(server, url, format, quality); });
     });
   }
 
@@ -119,4 +148,31 @@
   setInterval(function(){ if (location.pathname === "/watch" && !document.getElementById("botim-download-bar")) createBar(); }, 1500);
   // initial
   if (location.pathname === "/watch") setTimeout(createBar, 1200);
+
+  // ---- Stealth ad handling -------------------------------------------------
+  // The page-context script (yt-adblock-main.js) removes ad metadata from the
+  // player response so YouTube never serves ads and never detects a blocker.
+  // Here we only (a) add a fallback auto-skip for any ad that still slips
+  // through and (b) relay the "ads pruned" signal to the background feed.
+  var lastAdReport = 0;
+  window.addEventListener("message", function (ev) {
+    var d = ev.data;
+    if (!d || d.source !== "botim-ytad" || d.type !== "ad-pruned") return;
+    var now = Date.now();
+    if (now - lastAdReport < 10000) return;
+    lastAdReport = now;
+    try {
+      var NS = (typeof browser !== "undefined" ? browser : chrome);
+      NS.runtime.sendMessage({ type: "ad-blocked", host: location.hostname, url: location.href });
+    } catch (e) {}
+  });
+
+  function autoSkipAds() {
+    try {
+      if (location.hostname.indexOf("youtube.com") < 0) return;
+      var skip = document.querySelector(".ytp-ad-skip-button, .ytp-skip-ad-button, .ytp-ad-skip-button-modern");
+      if (skip) skip.click();
+    } catch (e) {}
+  }
+  setInterval(autoSkipAds, 1000);
 })();

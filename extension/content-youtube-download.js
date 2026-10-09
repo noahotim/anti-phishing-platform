@@ -148,4 +148,31 @@
   setInterval(function(){ if (location.pathname === "/watch" && !document.getElementById("botim-download-bar")) createBar(); }, 1500);
   // initial
   if (location.pathname === "/watch") setTimeout(createBar, 1200);
+
+  // ---- Stealth ad handling -------------------------------------------------
+  // The page-context script (yt-adblock-main.js) removes ad metadata from the
+  // player response so YouTube never serves ads and never detects a blocker.
+  // Here we only (a) add a fallback auto-skip for any ad that still slips
+  // through and (b) relay the "ads pruned" signal to the background feed.
+  var lastAdReport = 0;
+  window.addEventListener("message", function (ev) {
+    var d = ev.data;
+    if (!d || d.source !== "botim-ytad" || d.type !== "ad-pruned") return;
+    var now = Date.now();
+    if (now - lastAdReport < 10000) return;
+    lastAdReport = now;
+    try {
+      var NS = (typeof browser !== "undefined" ? browser : chrome);
+      NS.runtime.sendMessage({ type: "ad-blocked", host: location.hostname, url: location.href });
+    } catch (e) {}
+  });
+
+  function autoSkipAds() {
+    try {
+      if (location.hostname.indexOf("youtube.com") < 0) return;
+      var skip = document.querySelector(".ytp-ad-skip-button, .ytp-skip-ad-button, .ytp-ad-skip-button-modern");
+      if (skip) skip.click();
+    } catch (e) {}
+  }
+  setInterval(autoSkipAds, 1000);
 })();

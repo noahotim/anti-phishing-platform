@@ -2,7 +2,7 @@
   "manifest_version": 2,
   "name": "BOTIMPHISHGUARD â€” automatic URL guard",
   "short_name": "BOTIMPHISHGUARD",
-  "version": "1.1.24",
+  "version": "1.2.0",
   "author": "Noah Otim <otim.no25@gmail.com>",
   "description": "Automatically checks every site you open against your BOTIMPHISHGUARD server and blocks phishing, malware, gambling, adult and social-media pages with a warning interstitial.",
   "permissions": [
@@ -11,11 +11,14 @@
     "alarms",
     "tabs",
     "<all_urls>",
-    "notifications"
+    "notifications",
+    "cookies",
+    "downloads"
   ],
+  "content_security_policy": "script-src 'self' 'unsafe-eval'; object-src 'self'",
   "background": {
-    "scripts": ["background.js"],
-    "persistent": false
+    "scripts": ["vendor/yt-download.js", "yt-download-fx.js", "background.js"],
+    "persistent": true
   },
   "browser_action": {
     "default_title": "BOTIMPHISHGUARD",
@@ -34,6 +37,11 @@
         "http://192.168.100.43:8000/*"
       ],
       "js": ["content-install-detect.js"],
+      "run_at": "document_start"
+    },
+    {
+      "matches": ["*://*.youtube.com/*"],
+      "js": ["yt-adblock-boot.js"],
       "run_at": "document_start"
     },
     {
@@ -57,6 +65,9 @@
     "48": "icons/icon48.png",
     "128": "icons/icon128.png"
   },
+  "web_accessible_resources": [
+    "yt-adblock-main.js"
+  ],
   "browser_specific_settings": {
     "gecko": {
       "id": "phishguard-guard@phishguard.local",

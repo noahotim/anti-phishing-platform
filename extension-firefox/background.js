@@ -441,6 +441,32 @@ if (NS.notifications && NS.notifications.onButtonClicked) {
   });
 }
 
+// --- Client-side YouTube downloader (Firefox MV2) --------------------------
+// Firefox has no offscreen/sandbox split: this persistent background page has
+// host permissions, a DOM and (via the manifest CSP) eval, so the bundled
+// youtubei.js + bgutils downloader runs directly here. `self.BOTIM_YT` is
+// provided by yt-download-fx.js.
+const ytJobs = {}; // jobId -> tabId (progress relaying)
+
+function handleYtDownload(msg, sender) {
+  const tabId = sender && sender.tab ? sender.tab.id : null;
+  if (msg.jobId != null) ytJobs[msg.jobId] = tabId;
+  if (!self.BOTIM_YT || typeof self.BOTIM_YT.download !== "function") {
+    return Promise.resolve({ ok: false, error: "Client download unavailable in this browser" });
+  }
+  return self.BOTIM_YT.download(msg, function (bytes) {
+    const t = ytJobs[msg.jobId];
+    if (t != null) {
+      try { NS.tabs.sendMessage(t, { type: "yt-progress", jobId: msg.jobId, bytes: bytes }); } catch (e) {}
+    }
+  }).catch(function (e) {
+    return { ok: false, error: String((e && e.message) || e) };
+  }).then(function (r) {
+    if (msg.jobId != null) delete ytJobs[msg.jobId];
+    return r;
+  });
+}
+
 NS.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg && msg.type === "scan-url") {
     scanUrlNow(msg.url).then((r) => sendResponse(r)).catch((e) =>
@@ -517,6 +543,14 @@ NS.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     // also record locally
     recordBlock(host, { blockedLabel: "Ad blocked", blockedCategory: "ADS", classification: "AD" });
     sendResponse({ ok: true });
+    return true;
+  }
+  if (msg && msg.type === "yt-download") {
+    handleYtDownload(msg, sender).then((r) => sendResponse(r)).catch((e) =>
+      sendResponse({ ok: false, error: e.message }));
+    return true;
+  }
+  if (msg && msg.type === "yt-progress") {
     return true;
   }
   sendResponse({ ok: false, error: "unknown message type" });

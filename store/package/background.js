@@ -28,6 +28,31 @@ const RULE_REFRESH_MIN = 30;
 const MAX_DNR_RULES = 4900;
 const BYPASS_MS = 60 * 1000;
 
+// Always-on ad/tracking network blocks (fixed ids, distinct from server rules
+// which start at 1000). These are a network-level backstop for the page-context
+// player-response pruning; the pruning is what keeps YouTube from detecting a
+// blocker, the block just stops the requests that would otherwise leak through.
+const AD_RESOURCE_TYPES = [
+  "script", "image", "sub_frame", "xmlhttprequest", "ping", "media", "other",
+];
+const AD_RULES = [
+  "||doubleclick.net^",
+  "||googleads.g.doubleclick.net^",
+  "||googlesyndication.com^",
+  "||googleadservices.com^",
+  "||googletagservices.com^",
+  "||adservice.google.com^",
+  "||youtube.com/pagead^",
+  "||youtube.com/api/stats/ads^",
+  "||youtube.com/ptracking^",
+  "||youtube.com/get_midroll_info^",
+].map((urlFilter, i) => ({
+  id: i + 1,
+  priority: 2,
+  action: { type: "block" },
+  condition: { urlFilter, resourceTypes: AD_RESOURCE_TYPES },
+}));
+
 let cfg = { server: DEFAULT_SERVER, blockSuspicious: false, pauseUntil: 0 };
 let threatHosts = [];          // [{host, label, category}]
 const verdictCache = new Map(); // host -> verdict
@@ -202,7 +227,7 @@ async function installDnrRules(rules) {
   }
   const existing = await NS.declarativeNetRequest.getDynamicRules();
   const removeRuleIds = existing.map((r) => r.id);
-  const addRules = [];
+  const addRules = AD_RULES.slice();
   const map = {};
   let i = 0;
   for (const r of rules) {
